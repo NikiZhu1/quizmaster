@@ -1,17 +1,23 @@
 import React from 'react';
-import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
-import Catalog from './pages/Catalog.jsx';
+import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
+import { Layout } from 'antd';
+import Catalog from './pages/Catalog';
+import HeaderComponent from './components/HeaderComponent';
+
+const { Content } = Layout;
 
 export default function App() {
-    return (
-        <Router>
-            <Routes>
-                <Route path="/" element={<Catalog />} />
-                {/* <Route path="/register" element={<Register />} />
-                <Route path="/dashboard" element={<Navigate to="/dashboard/activities" replace />} />
-                <Route path="/dashboard/:activeTab?" element={<Dashboard />} />
-                <Route path="/dashboard/projects/:projectId" element={<Dashboard />} />   */}
-            </Routes>
-        </Router>
-    );
-};
+  return (
+    <Router>
+      <Layout style={{ minHeight: '100vh' }}>
+        <HeaderComponent />
+        <Content style={{ padding: '24px 50px' }}>
+          <Routes>
+            <Route path="/" element={<Catalog />} />
+            {/* Остальные роуты пока закомментированы */}
+          </Routes>
+        </Content>
+      </Layout>
+    </Router>
+  );
+}

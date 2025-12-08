@@ -18,10 +18,11 @@ export default function Catalog() {
     }, []);
 
     const loadQuizzes = async () => {
-        try {
-            await getAllQuizzes();
-        } catch (error) {
-            console.error("Ошибка при загрузке квизов:", error);
+    try {
+        await getAllQuizzes();
+    } catch (error) {
+        console.error("Ошибка при загрузке квизов:", error);
+    }
     };
 
     return (
@@ -42,5 +43,4 @@ export default function Catalog() {
             )}
         </div>
     );
-}
 }
