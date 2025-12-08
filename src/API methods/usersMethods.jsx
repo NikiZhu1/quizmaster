@@ -74,3 +74,22 @@ export const getUserInfo = async (token, userId) => {
     }
 };
 
+/**
+ * Получает никнейм пользователя по его ID
+ * @param {number} userId - ID пользователя
+ * @returns {Promise<string|null>} - Никнейм пользователя или null при ошибке
+ */
+export const getUserNickname = async (userId) => {
+  if (!userId || userId <= 0) {
+    console.error('Неверный ID пользователя');
+    return null;
+  }
+
+  try {
+    const response = await apiClient.get(`/User/${userId}`);
+    return response.data.nickname || response.data.username || 'Пользователь';
+  } catch (error) {
+    console.error(`Ошибка при получении никнейма пользователя ${userId}:`, error);
+    return null;
+  }
+};
