@@ -87,7 +87,7 @@ export const getUserNickname = async (userId) => {
 
   try {
     const response = await apiClient.get(`/User/${userId}`);
-    return response.data.nickname || response.data.username || 'Пользователь';
+    return response.data.name || 'Пользователь';
   } catch (error) {
     console.error(`Ошибка при получении никнейма пользователя ${userId}:`, error);
     return null;
