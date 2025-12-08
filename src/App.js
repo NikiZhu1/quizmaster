@@ -1,25 +1,17 @@
-import logo from './logo.svg';
-import './App.css';
+import React from 'react';
+import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
+import Catalog from './pages/Catalog.jsx';
 
-function App() {
-  return (
-    <div className="App">
-      <header className="App-header">
-        <img src={logo} className="App-logo" alt="logo" />
-        <p>
-          HELLOOOO!!!<code>src/App.js</code> and save to reload.
-        </p>
-        <a
-          className="App-link"
-          href="https://reactjs.org"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          Learn React
-        </a>
-      </header>
-    </div>
-  );
-}
-
-export default App;
+export default function App() {
+    return (
+        <Router>
+            <Routes>
+                <Route path="/" element={<Catalog />} />
+                {/* <Route path="/register" element={<Register />} />
+                <Route path="/dashboard" element={<Navigate to="/dashboard/activities" replace />} />
+                <Route path="/dashboard/:activeTab?" element={<Dashboard />} />
+                <Route path="/dashboard/projects/:projectId" element={<Dashboard />} />   */}
+            </Routes>
+        </Router>
+    );
+};
