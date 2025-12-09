@@ -42,7 +42,8 @@ const HeaderComponent = () => {
         const decoded = jwtDecode(token);
         setIsAuthenticated(true);
         // Предполагаем, что в токене есть имя пользователя
-        // Может быть в разных полях в зависимости от вашего бэкенда
+        // Может быть в разных полях в зависимости от вашего бэкенда 
+        // комменткомметкомет
 
         const userid = GetUserIdFromJWT(token);
         const user = await getUserInfo(userid);
