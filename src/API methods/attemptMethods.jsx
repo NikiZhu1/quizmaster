@@ -1,5 +1,6 @@
 import apiClient from './.APIclient';
 import Cookies from 'js-cookie';
+import { GetUserIdFromJWT } from './usersMethods';
 
 /**
  * Начинает попытку прохождения квиза
@@ -57,7 +58,7 @@ export const finishAttempt = async (attemptId, answers) => {
   console.log('- answers:', answers);
   
   try {
-    const response = await apiClient.post(`/attempt/${attemptId}/stop`, {
+    const response = await apiClient.post(`/Attempt/${attemptId}/stop`, {
       answers: answers
     }, {
       headers: token ? { Authorization: `Bearer ${token}` } : {}
@@ -87,8 +88,8 @@ export const getAttemptById = async (attemptId) => {
   const token = Cookies.get('token');
   
   try {
-    const response = await apiClient.get(`/attempt/${attemptId}`, {
-      headers: token ? { Authorization: `Bearer ${token}` } : {}
+    const response = await apiClient.get(`/Attempt/${attemptId}`, {
+        headers: token ? { Authorization: `Bearer ${token}` } : {}
     });
     return response.data;
   } catch (error) {
@@ -104,9 +105,21 @@ export const getAttemptById = async (attemptId) => {
  */
 export const getAttemptAnswers = async (attemptId) => {
   const token = Cookies.get('token');
+  const guestSessionId = Cookies.get('guestSessionId');
+
+  let params = ''
+
+  if (token) {
+      // Получаем userId из токена
+      const userId = GetUserIdFromJWT(token);
+      params = `userId=${userId}`;
+    } 
+    else if (guestSessionId) {
+      params = `guestSessionId=${guestSessionId}`;
+    }
   
   try {
-    const response = await apiClient.get(`/attempt/${attemptId}/answers`, {
+    const response = await apiClient.get(`/Attempt/${attemptId}/answers?${params}`, {
       headers: token ? { Authorization: `Bearer ${token}` } : {}
     });
     return response.data;

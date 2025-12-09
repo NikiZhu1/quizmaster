@@ -1,6 +1,7 @@
 import { useState, useCallback, useRef, useEffect } from 'react';
 import * as api from '../API methods/attemptMethods.jsx';
 import * as quizApi from '../API methods/quizMethods.jsx';
+import Cookies from 'js-cookie';
 
 export const useQuizAttempt = () => {
   const [attempt, setAttempt] = useState(null);
@@ -22,6 +23,9 @@ export const useQuizAttempt = () => {
       // Начинаем попытку
       const attemptData = await api.startAttempt(quizId);
       setAttempt(attemptData);
+      console.log(attemptData.guestSessionId)
+      console.log("GHBDRN!!!!")
+      Cookies.set('guestSessionId', attemptData.guestSessionId, { expires: 1, secure: true, sameSite: 'Strict' });
       
       // Получаем вопросы квиза
       const questionsData = await quizApi.getQuizQuestions(quizId, accessKey);
