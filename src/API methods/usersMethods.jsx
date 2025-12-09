@@ -1,4 +1,6 @@
 import apiClient from './.APIclient';
+import { jwtDecode } from 'jwt-decode';
+import Cookies from 'js-cookie';
 
 export const AuthenticateUser = async (values, isRegistration) => {
     try {
@@ -11,85 +13,88 @@ export const AuthenticateUser = async (values, isRegistration) => {
             password: values.password
         });
 
-        //Получаем JWT токен из ответа на авторизацию
+        // Получаем JWT токен из ответа на авторизацию
         const token = response.data.token;
         if (!token) {
             throw new Error('Токен отсутствует в ответе сервера');
         }
 
-        //Декодируем JWT токен для получения UserId
-        let userId;
-        try {
-            userId = GetUserIdFromJWT(token);
-
-        } catch (decodeError) {
-            console.error('Ошибка при декодировании токена:', decodeError);
-            return;
-        }
-
         return token;
     }
     catch (error) {
+        console.error('Ошибка аутентификации:', error.response?.data || error.message);
         throw error;
     }
 };
 
 export const GetUserIdFromJWT = (token) => {
     try {
-        let userId
         const decoded = jwtDecode(token);
-        userId = decoded['http://schemas.xmlsoap.org/ws/2005/05/identity/claims/nameidentifier'];
-
-        if (userId)
-            return userId;
-
-    } catch (decodeError) {;
+        const userId = decoded['http://schemas.xmlsoap.org/ws/2005/05/identity/claims/nameidentifier'];
+        
+        if (userId) {
+            return parseInt(userId);
+        }
+        return null;
+    } catch (decodeError) {
         console.error('Ошибка при декодировании токена:', decodeError);
-        return;
-    }
-};
-
-export const GetJWT = () => {
-    const token = Cookies.get('token');
-
-    if (!token) {
-        console.error('Ошибка: Токен отсутствует.');
         return null;
     }
-
-    return token;
 };
 
 export const getUserInfo = async (token, userId) => {
     try {
-        const response = await apiClient.get(`/Users/${userId}`,
-            { 
-                headers: { Authorization: `Bearer ${token}` } 
+        const response = await apiClient.get(`/User/${userId}`, {
+            headers: { 
+                Authorization: `Bearer ${token}` 
             }
-        );
+        });
         return response.data;
     }
     catch (error) {
-        console.error(`Ошибка при получении информациии пользователя #${userId}`, error);
+        console.error(`Ошибка при получении информации пользователя #${userId}`, error);
+        throw error;
     }
 };
 
-/**
- * Получает никнейм пользователя по его ID
- * @param {number} userId - ID пользователя
- * @returns {Promise<string|null>} - Никнейм пользователя или null при ошибке
- */
 export const getUserNickname = async (userId) => {
-  if (!userId || userId <= 0) {
-    console.error('Неверный ID пользователя');
-    return null;
-  }
+    const token = Cookies.get('token');
+    
+    if (!userId || userId <= 0) {
+        console.error('Неверный ID пользователя');
+        return null;
+    }
 
-  try {
-    const response = await apiClient.get(`/User/${userId}`);
-    return response.data.name || 'Пользователь';
-  } catch (error) {
-    console.error(`Ошибка при получении никнейма пользователя ${userId}:`, error);
-    return null;
-  }
+    try {
+        const response = await apiClient.get(`/User/${userId}`, {
+            headers: token ? { Authorization: `Bearer ${token}` } : {}
+        });
+        
+        // Предполагаем, что сервер возвращает username или name
+        return response.data.username || response.data.name || 'Пользователь';
+    } catch (error) {
+        console.error(`Ошибка при получении никнейма пользователя ${userId}:`, error);
+        return null;
+    }
+};
+
+export const updateUserProfile = async (userId, userData) => {
+    const token = Cookies.get('token');
+    
+    if (!token) {
+        throw new Error('Требуется авторизация');
+    }
+
+    try {
+        const response = await apiClient.put(`/User/${userId}`, userData, {
+            headers: { 
+                Authorization: `Bearer ${token}`,
+                'Content-Type': 'application/json'
+            }
+        });
+        return response.data;
+    } catch (error) {
+        console.error(`Ошибка при обновлении профиля пользователя ${userId}:`, error);
+        throw error;
+    }
 };

@@ -1,9 +1,12 @@
-import React from 'react';
-import { Layout, Breadcrumb, Flex } from 'antd';
-import { HomeOutlined, UserOutlined, QuestionCircleOutlined } from '@ant-design/icons';
-import UserInfo from './UserInfo';
+import React, { useState, useEffect } from 'react';
+import { Layout, Breadcrumb, Flex, Button, Avatar, Dropdown, Space, Typography } from 'antd';
+import { HomeOutlined, UserOutlined, LoginOutlined, LogoutOutlined, SettingOutlined } from '@ant-design/icons';
+import { useNavigate } from 'react-router-dom';
+import Cookies from 'js-cookie';
+import { jwtDecode } from 'jwt-decode'; // для декодирования JWT
 
 const { Header } = Layout;
+const { Text } = Typography;
 
 const HeaderStyle = {
   backgroundColor: '#fff',
@@ -17,20 +20,94 @@ const HeaderStyle = {
 };
 
 const HeaderComponent = () => {
-  // Для примера - берем пользователя из localStorage или используем mock
-  const user = {
-    id: 1,
-    name: 'Иван Иванов'
+  const navigate = useNavigate();
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [userName, setUserName] = useState('');
+  const [userId, setUserId] = useState(null);
+
+  // Проверяем наличие токена и декодируем его при загрузке
+  useEffect(() => {
+    checkAuthentication();
+  }, []);
+
+  const checkAuthentication = () => {
+    const token = Cookies.get('token');
+    
+    if (token) {
+      try {
+        const decoded = jwtDecode(token);
+        setIsAuthenticated(true);
+        // Предполагаем, что в токене есть имя пользователя
+        // Может быть в разных полях в зависимости от вашего бэкенда
+        const username = 
+          decoded['http://schemas.xmlsoap.org/ws/2005/05/identity/claims/name'] || 
+          decoded.username || 
+          decoded.name || 
+          decoded.sub || 
+          'Пользователь';
+        
+        const userIdFromToken = 
+          decoded['http://schemas.xmlsoap.org/ws/2005/05/identity/claims/nameidentifier'] ||
+          decoded.userId ||
+          decoded.sub;
+        
+        setUserName(username);
+        setUserId(userIdFromToken);
+      } catch (error) {
+        console.error('Ошибка декодирования токена:', error);
+        handleLogout();
+      }
+    } else {
+      setIsAuthenticated(false);
+      setUserName('');
+      setUserId(null);
+    }
   };
 
-  // Простые хлебные крошки (можно сделать динамическими позже)
+  const handleLogin = () => {
+    navigate('/login'); // Перенаправляем на страницу входа
+  };
+
+  const handleLogout = () => {
+    Cookies.remove('token');
+    setIsAuthenticated(false);
+    setUserName('');
+    setUserId(null);
+    // Можно перенаправить на главную
+    navigate('/');
+  };
+
+  // Меню для авторизованного пользователя
+  const userMenuItems = [
+    {
+      key: 'profile',
+      icon: <UserOutlined />,
+      label: 'Профиль',
+      onClick: () => navigate('/profile')
+    },
+    {
+      key: 'settings',
+      icon: <SettingOutlined />,
+      label: 'Настройки',
+      onClick: () => navigate('/settings')
+    },
+    {
+      type: 'divider',
+    },
+    {
+      key: 'logout',
+      icon: <LogoutOutlined />,
+      label: 'Выйти',
+      danger: true,
+      onClick: handleLogout
+    },
+  ];
+
+  // Только "Главная" в хлебных крошках
   const breadcrumbsItems = [
     {
       href: '/',
       title: <><HomeOutlined /> Главная</>,
-    },
-    {
-      title: <><UserOutlined /> Профиль</>,
     }
   ];
 
@@ -38,7 +115,30 @@ const HeaderComponent = () => {
     <Header style={HeaderStyle}>
       <Flex justify='space-between' align='center' style={{ width: '100%', height: '100%' }}>
         <Breadcrumb items={breadcrumbsItems} />
-        <UserInfo userId={user.id} userName={user.name} />
+        
+        {isAuthenticated ? (
+          <Dropdown menu={{ items: userMenuItems }} placement="bottomRight" arrow>
+            <Space style={{ cursor: 'pointer', padding: '0 8px' }}>
+              <Avatar 
+                icon={<UserOutlined />}
+                style={{ 
+                  backgroundColor: '#1890ff',
+                  color: '#fff'
+                }}
+                src={userId ? `https://api.dicebear.com/7.x/avataaars/svg?seed=${userId}` : null}
+              />
+              <Text strong>{userName}</Text>
+            </Space>
+          </Dropdown>
+        ) : (
+          <Button 
+            type="primary" 
+            icon={<LoginOutlined />}
+            onClick={handleLogin}
+          >
+            Войти
+          </Button>
+        )}
       </Flex>
     </Header>
   );
