@@ -1,65 +1,115 @@
 import React, { useState } from 'react';
-import { Card, Modal, Button, Typography, Tag } from 'antd';
-import { ClockCircleOutlined } from '@ant-design/icons';
+import { Card, Modal, Button, Typography, Tag, Space } from 'antd';
+import { ClockCircleOutlined, QuestionCircleOutlined } from '@ant-design/icons';
 import { useNavigate } from 'react-router-dom';
 
-const { Text, Paragraph } = Typography;
+const { Text, Paragraph, Title } = Typography;
 
 function QuizCard({ quiz }) {
     const navigate = useNavigate();
-    const [open, setOpen] = useState(false);
+    const [modalVisible, setModalVisible] = useState(false);
 
-    const handleStart = () => {
+    const handleStartQuiz = () => {
+        // Закрываем модальное окно и переходим на страницу прохождения квиза
+        setModalVisible(false);
         navigate(`/quiz/${quiz.id}`);
+    };
+
+    const formatTime = (seconds) => {
+        if (!seconds) return "Не ограничено";
+        const hours = Math.floor(seconds / 3600);
+        const minutes = Math.floor((seconds % 3600) / 60);
+        const secs = seconds % 60;
+        
+        if (hours > 0) {
+            return `${hours}ч ${minutes}м ${secs}с`;
+        } else if (minutes > 0) {
+            return `${minutes}м ${secs}с`;
+        } else {
+            return `${secs}с`;
+        }
     };
 
     return (
         <>
-            {/* --- КАРТОЧКА --- */}
+            {/* Карточка */}
             <Card
                 hoverable
-                onClick={() => setOpen(true)}
+                onClick={() => setModalVisible(true)}
                 style={{
-                    width: 300,
-                    minHeight: 150,
+                    width: '100%',
+                    minHeight: 180,
+                    borderRadius: 8,
+                    transition: 'all 0.3s',
                 }}
+                bodyStyle={{ padding: 16 }}
             >
-                <Card.Meta
-                    title={quiz.title}
-                    description={
-                        <Paragraph ellipsis={{ rows: 2 }}>
-                            {quiz.description}
-                        </Paragraph>
-                    }
-                />
-
-                <div style={{ marginTop: 12 }}>
-                    <Tag icon={<ClockCircleOutlined />}>
-                        Время: {quiz.timeLimit || "Не ограничено"}
-                    </Tag>
-                </div>
+                <Space direction="vertical" size="small" style={{ width: '100%' }}>
+                    <Title level={5} style={{ margin: 0 }}>
+                        {quiz.title}
+                    </Title>
+                    
+                    <Paragraph 
+                        ellipsis={{ rows: 2 }} 
+                        style={{ margin: 0, color: 'rgba(0, 0, 0, 0.65)' }}
+                    >
+                        {quiz.description || 'Описание отсутствует'}
+                    </Paragraph>
+                    
+                    <div style={{ marginTop: 'auto' }}>
+                        <Tag icon={<ClockCircleOutlined />} color="blue">
+                            {formatTime(quiz.timeLimit)}
+                        </Tag>
+                    </div>
+                </Space>
             </Card>
 
-            {/* --- МОДАЛЬНОЕ ОКНО --- */}
+            {/* Модальное окно */}
             <Modal
-                title={quiz.title}
-                open={open}
-                onCancel={() => setOpen(false)}
+                title={
+                    <Space>
+                        <QuestionCircleOutlined />
+                        <span>{quiz.title}</span>
+                    </Space>
+                }
+                open={modalVisible}
+                onCancel={() => setModalVisible(false)}
                 footer={[
-                    <Button key="cancel" onClick={() => setOpen(false)}>
+                    <Button key="cancel" onClick={() => setModalVisible(false)}>
                         Закрыть
                     </Button>,
-                    <Button key="start" type="primary" onClick={handleStart}>
-                        Старт
+                    <Button 
+                        key="start" 
+                        type="primary" 
+                        onClick={handleStartQuiz}
+                    >
+                        Начать прохождение
                     </Button>
                 ]}
+                width={600}
             >
-                <Paragraph>{quiz.description}</Paragraph>
-
-                <Text>
-                    <ClockCircleOutlined /> Время:{" "}
-                    {quiz.timeLimit || "не ограничено"}
-                </Text>
+                <Space direction="vertical" size="middle" style={{ width: '100%' }}>
+                    {quiz.description && (
+                        <div>
+                            <Text strong>Описание:</Text>
+                            <Paragraph style={{ marginTop: 8 }}>
+                                {quiz.description}
+                            </Paragraph>
+                        </div>
+                    )}
+                    
+                    <Space>
+                        <Tag icon={<ClockCircleOutlined />} color="blue">
+                            Время: {formatTime(quiz.timeLimit)}
+                        </Tag>
+                    </Space>
+                    
+                    <div>
+                        <Text type="secondary">
+                            Нажмите "Начать прохождение" чтобы приступить к квизу
+                        </Text>
+                    </div>
+                </Space>
             </Modal>
         </>
     );

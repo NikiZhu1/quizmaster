@@ -162,3 +162,78 @@ export const updateQuiz = async (token, id, updates) => {
     throw error;
   }
 };
+
+
+
+
+// Добавьте эти функции в существующий файл quizMethods.jsx
+
+/**
+ * Получает вопросы для квиза
+ * @param {number} quizId - ID квиза
+ * @param {string} accessKey - Ключ доступа для приватных квизов
+ * @returns {Promise<Array>} - Массив вопросов
+ */
+export const getQuizQuestions = async (quizId, accessKey = null) => {
+  try {
+    const params = {};
+    if (accessKey) {
+      params.accessKey = accessKey;
+    }
+    
+    const response = await apiClient.get(`/quiz/${quizId}/questions`, { params });
+    return response.data;
+  } catch (error) {
+    console.error(`Ошибка при получении вопросов квиза ${quizId}:`, error);
+    throw error;
+  }
+};
+
+/**
+ * Подключается к квизу по коду доступа
+ * @param {string} code - Код доступа (5 символов)
+ * @returns {Promise<Object>} - Информация о квизе
+ */
+export const connectToQuizByCode = async (code) => {
+  try {
+    const response = await apiClient.get(`/quiz/connect/${code}`);
+    return response.data;
+  } catch (error) {
+    console.error(`Ошибка при подключении к квизу по коду ${code}:`, error);
+    throw error;
+  }
+};
+
+
+
+
+/**
+ * Получает вопросы для квиза с детальной информацией
+ */
+export const getQuizQuestionsDetailed = async (quizId, accessKey = null) => {
+  try {
+    const params = {};
+    if (accessKey) {
+      params.accessKey = accessKey;
+    }
+    
+    const response = await apiClient.get(`/quiz/${quizId}/questions`, { params });
+    
+    // Проверяем структуру ответа
+    console.log('Структура вопросов:', response.data);
+    
+    // Если опции не имеют ID, добавляем их
+    const questions = response.data.map(question => ({
+      ...question,
+      options: question.options?.map((option, index) => ({
+        ...option,
+        id: option.id || `temp_${question.id}_${index}` // Временный ID если нет
+      })) || []
+    }));
+    
+    return questions;
+  } catch (error) {
+    console.error(`Ошибка при получении вопросов квиза ${quizId}:`, error);
+    throw error;
+  }
+};
