@@ -40,11 +40,6 @@ export default function Catalog() {
 
     return (
         <div style={{ padding: "24px 40px" }}>
-            <Header style={HeaderStyle}>
-                <Flex justify='space-between' align='center' style={{width: '100%'}}>
-                    <Button/>
-                </Flex>
-            </Header>
             <Title level={2}>Все квизы</Title>
 
             {quizzes.length === 0 ? (
