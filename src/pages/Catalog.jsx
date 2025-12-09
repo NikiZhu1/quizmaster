@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { Row, Col, Spin, Typography, Empty } from 'antd';
+import { Row, Col, Flex, Layout, Typography, Empty, Button } from 'antd';
 
 //Компоненты
 import QuizCard from '../components/quizCard';
@@ -7,7 +7,20 @@ import QuizCard from '../components/quizCard';
 //Методы
 import { useQuizes } from '../hooks/useQuizes';
 
+const HeaderStyle = {
+    background: '#fff',
+    position: 'sticky',
+    top: 0,
+    zIndex: 1,
+    width: '100%',
+    display: 'flex',
+    alignItems: 'center',
+    height: '48px',
+    padding: '24px'
+};
+
 const { Title } = Typography;
+const { Header, Footer, Content } = Layout;
 
 export default function Catalog() {
     // const [quizzes, setQuizzes] = useState([]);
@@ -27,7 +40,11 @@ export default function Catalog() {
 
     return (
         <div style={{ padding: "24px 40px" }}>
-            <p>Ghbdtn</p>
+            <Header style={HeaderStyle}>
+                <Flex justify='space-between' align='center' style={{width: '100%'}}>
+                    <Button/>
+                </Flex>
+            </Header>
             <Title level={2}>Все квизы</Title>
 
             {quizzes.length === 0 ? (
