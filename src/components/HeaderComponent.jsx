@@ -5,6 +5,9 @@ import { useNavigate } from 'react-router-dom';
 import Cookies from 'js-cookie';
 import { jwtDecode } from 'jwt-decode'; // для декодирования JWT
 
+//Методы
+import { useUsers } from '../hooks/useUsers.jsx';
+
 const { Header } = Layout;
 const { Text } = Typography;
 
@@ -21,6 +24,7 @@ const HeaderStyle = {
 
 const HeaderComponent = () => {
   const navigate = useNavigate();
+  const {GetUserIdFromJWT, getUserInfo} = useUsers();
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [userName, setUserName] = useState('');
   const [userId, setUserId] = useState(null);
@@ -30,7 +34,7 @@ const HeaderComponent = () => {
     checkAuthentication();
   }, []);
 
-  const checkAuthentication = () => {
+  const checkAuthentication = async () => {
     const token = Cookies.get('token');
     
     if (token) {
@@ -39,20 +43,12 @@ const HeaderComponent = () => {
         setIsAuthenticated(true);
         // Предполагаем, что в токене есть имя пользователя
         // Может быть в разных полях в зависимости от вашего бэкенда
-        const username = 
-          decoded['http://schemas.xmlsoap.org/ws/2005/05/identity/claims/name'] || 
-          decoded.username || 
-          decoded.name || 
-          decoded.sub || 
-          'Пользователь';
-        
-        const userIdFromToken = 
-          decoded['http://schemas.xmlsoap.org/ws/2005/05/identity/claims/nameidentifier'] ||
-          decoded.userId ||
-          decoded.sub;
-        
-        setUserName(username);
-        setUserId(userIdFromToken);
+
+        const userid = GetUserIdFromJWT(token);
+        const user = await getUserInfo(userid);
+  
+        setUserName(user.name);
+        setUserId(user.id);
       } catch (error) {
         console.error('Ошибка декодирования токена:', error);
         handleLogout();

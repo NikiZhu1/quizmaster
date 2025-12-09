@@ -42,39 +42,14 @@ export const GetUserIdFromJWT = (token) => {
     }
 };
 
-export const getUserInfo = async (token, userId) => {
+export const getUserInfo = async (userId) => {
     try {
-        const response = await apiClient.get(`/User/${userId}`, {
-            headers: { 
-                Authorization: `Bearer ${token}` 
-            }
-        });
+        const response = await apiClient.get(`/User/${userId}`);
         return response.data;
     }
     catch (error) {
         console.error(`Ошибка при получении информации пользователя #${userId}`, error);
         throw error;
-    }
-};
-
-export const getUserNickname = async (userId) => {
-    const token = Cookies.get('token');
-    
-    if (!userId || userId <= 0) {
-        console.error('Неверный ID пользователя');
-        return null;
-    }
-
-    try {
-        const response = await apiClient.get(`/User/${userId}`, {
-            headers: token ? { Authorization: `Bearer ${token}` } : {}
-        });
-        
-        // Предполагаем, что сервер возвращает username или name
-        return response.data.username || response.data.name || 'Пользователь';
-    } catch (error) {
-        console.error(`Ошибка при получении никнейма пользователя ${userId}:`, error);
-        return null;
     }
 };
 

@@ -50,22 +50,6 @@ const AuthForm = ({
                     />
                 </Form.Item>
 
-                {isRegistration && (
-                    <Form.Item
-                        name="email"
-                        rules={[
-                            { required: true, message: 'Введите email!' },
-                            { type: 'email', message: 'Введите корректный email!' }
-                        ]}
-                    >
-                        <Input 
-                            prefix={<MailOutlined />} 
-                            placeholder="Email" 
-                            size="large"
-                        />
-                    </Form.Item>
-                )}
-
                 <Form.Item
                     name="password"
                     rules={[

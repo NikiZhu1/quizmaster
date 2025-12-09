@@ -14,8 +14,6 @@ export default function App() {
   return (
     <Router>
       <Layout style={{ minHeight: '100vh' }}>
-        <HeaderComponent />
-        <Content style={{ padding: '24px 50px' }}>
           <Routes>
             <Route path="/" element={<Catalog />} />
             <Route path="/login" element={<Login />} />
@@ -24,7 +22,6 @@ export default function App() {
             <Route path="/quiz-result/:attemptId" element={<QuizResult />} />
             {/* Остальные роуты пока закомментированы */}
           </Routes>
-        </Content>
       </Layout>
     </Router>
   );

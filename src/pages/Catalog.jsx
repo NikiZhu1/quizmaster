@@ -1,11 +1,12 @@
 import React, { useEffect, useState } from 'react';
-import { Row, Col, Flex, Layout, Typography, Empty, Button } from 'antd';
+import { Row, Col, Layout, Typography, Empty } from 'antd';
 
 //Компоненты
 import QuizCard from '../components/quizCard';
 
 //Методы
 import { useQuizes } from '../hooks/useQuizes';
+import HeaderComponent from '../components/HeaderComponent';
 
 const HeaderStyle = {
     background: '#fff',
@@ -20,7 +21,6 @@ const HeaderStyle = {
 };
 
 const { Title } = Typography;
-const { Header, Footer, Content } = Layout;
 
 export default function Catalog() {
     // const [quizzes, setQuizzes] = useState([]);
@@ -39,12 +39,10 @@ export default function Catalog() {
     };
 
     return (
-        <div style={{ padding: "24px 40px" }}>
-            <Header style={HeaderStyle}>
-                <Flex justify='space-between' align='center' style={{width: '100%'}}>
-                    <Button/>
-                </Flex>
-            </Header>
+        <Layout>
+            <HeaderComponent />
+
+            <div style={{ padding: "24px 40px" }}>
             <Title level={2}>Все квизы</Title>
 
             {quizzes.length === 0 ? (
@@ -58,6 +56,7 @@ export default function Catalog() {
                     ))}
                 </Row>
             )}
-        </div>
+            </div>
+        </Layout>
     );
 }
