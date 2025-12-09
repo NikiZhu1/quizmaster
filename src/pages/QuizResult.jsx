@@ -12,6 +12,8 @@ import * as api from '../API methods/attemptMethods.jsx';
 
 const { Title, Text, Paragraph } = Typography;
 
+//проба проба супер хуй пися говно какашка
+
 export default function QuizResult() {
     const { attemptId } = useParams();
     const navigate = useNavigate();
