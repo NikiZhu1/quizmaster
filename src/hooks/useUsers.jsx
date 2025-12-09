@@ -1,42 +1,58 @@
 import { useState } from 'react';
 import Cookies from 'js-cookie';
-import { 
-    AuthenticateUser, 
-    GetUserIdFromJWT, 
-    getUserInfo 
-} from '../API methods/usersMethods.jsx';
+
+//Методы
+import * as api from '../API methods/usersMethods.jsx'; 
 
 export const useUsers = () => {
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState(null);
 
     // Функция авторизации
-    const loginUser = async (values, isRegistration = false) => {
-        setLoading(true);
-        setError(null);
+    const loginUser = async (values) => {
+    setLoading(true);
+    setError(null);
+    try {
+        const token = await api.AuthenticateUser(values, false);
+
+        // Сохраняем токен в cookies
+        setTokenToCookie(token);
         
-        try {
-            const token = await AuthenticateUser(values, isRegistration);
-            
-            if (token) {
-                // Сохраняем токен в cookies
-                Cookies.set('token', token, { expires: 7 }); // Токен на 7 дней
-                return token;
-            } else {
-                throw new Error('Токен не получен');
-            }
-        } catch (err) {
-            setError(err.message);
-            throw err;
-        } finally {
-            setLoading(false);
-        }
-    };
+        console.log('Вход: ', values);
+    }
+    catch (error) {
+        console.error(`Ошибка входа: `, error);
+        throw error;
+    }
+    finally {
+        setLoading(false);
+    }
+}
 
     // Функция регистрации
     const registerUser = async (values) => {
-        return await loginUser(values, true); // Используем ту же функцию, но с isRegistration = true
-    };
+    setLoading(true);
+    setError(null);
+    try {
+        const token = await api.AuthenticateUser(values, true);
+
+        // Сохраняем токен в cookies
+        setTokenToCookie(token);
+
+        console.log('Регистрация: ', values);
+    }
+    catch (error) {
+        console.error(`Ошибка регистрации: `, error);
+        throw error;
+    }
+    finally {
+        setLoading(false);
+    }
+}
+
+    const setTokenToCookie = (token) => {
+        Cookies.set('token', token, { expires: 1, secure: true, sameSite: 'Strict' });
+}
 
     // Функция выхода
     const logoutUser = () => {
@@ -44,22 +60,30 @@ export const useUsers = () => {
     };
 
     // Получение информации о текущем пользователе
-    const getCurrentUser = async () => {
-        const token = Cookies.get('token');
-        if (!token) return null;
+    const getUserInfo = async (userId) => {
+        if (!userId) return null;
 
         try {
-            const userId = GetUserIdFromJWT(token);
-            if (userId) {
-                const userInfo = await getUserInfo(token, userId);
-                return userInfo;
-            }
-            return null;
+            const userInfo = await api.getUserInfo(userId);
+            return userInfo;
+                
         } catch (err) {
             console.error('Ошибка получения пользователя:', err);
             return null;
         }
     };
+
+    const GetUserIdFromJWT = (token) => {
+        if (!token) return null;
+
+        try {
+            const userId = api.GetUserIdFromJWT(token);
+            return userId;
+        } catch (err) {
+            console.error('Ошибка получения id из токена')
+            return null;
+        }
+    }
 
     return {
         loading,
@@ -67,6 +91,7 @@ export const useUsers = () => {
         loginUser,
         registerUser,
         logoutUser,
-        getCurrentUser
+        getUserInfo,
+        GetUserIdFromJWT
     };
 };

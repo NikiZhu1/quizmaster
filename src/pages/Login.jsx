@@ -5,14 +5,13 @@ import Cookies from 'js-cookie';
 
 // Методы
 import { useUsers } from '../hooks/useUsers.jsx';
-import { GetUserIdFromJWT, getUserInfo } from '../API methods/usersMethods.jsx';
 
 // Компоненты
 import AuthForm from '../components/AuthForm.jsx';
 
 function Login() {
     const navigate = useNavigate();
-    const { loading, loginUser } = useUsers();
+    const { loading, loginUser, GetUserIdFromJWT, getUserInfo} = useUsers();
 
     // Авторизация
     const onFinish = async (values) => {
