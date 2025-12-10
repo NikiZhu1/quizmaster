@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { 
     Card, Row, Col, Statistic, Progress, Button, 
-    Typography, Space, List, Tag, Alert, Descriptions, 
+    Typography, Space, List, Tag, Alert, Descriptions, Layout, 
     Divider, Tooltip
 } from 'antd';
 import { 
@@ -12,6 +12,7 @@ import {
     CheckOutlined, CloseOutlined, InfoCircleOutlined
 } from '@ant-design/icons';
 import * as api from '../API methods/attemptMethods.jsx';
+import * as quizApi from '../API methods/quizMethods.jsx';
 import HeaderComponent from '../components/HeaderComponent.jsx';
 
 const { Title, Text, Paragraph } = Typography;
