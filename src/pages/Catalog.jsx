@@ -1,5 +1,7 @@
 import React, { useEffect, useState } from 'react';
-import { Row, Col, Layout, Typography, Empty } from 'antd';
+import { Row, Col, Layout, Typography, Empty, Card, Button, Space, message } from 'antd';
+import { useNavigate } from 'react-router-dom';
+import Cookies from 'js-cookie';
 
 //Компоненты
 import QuizCard from '../components/quizCard';
@@ -25,6 +27,7 @@ const { Title } = Typography;
 export default function Catalog() {
     // const [quizzes, setQuizzes] = useState([]);
     const {quizzes, loading, error, getAllQuizzes} = useQuizes();
+    const navigate = useNavigate();
 
     useEffect(() => {
         loadQuizzes();
@@ -38,9 +41,46 @@ export default function Catalog() {
     }
     };
 
+    const handleCreateQuiz = () => {
+        const token = Cookies.get('token');
+        if (!token) {
+            message.warning('Для создания квиза необходимо войти в аккаунт');
+        } else {
+            navigate('/newquiz');
+        }
+    };
+
+    const handleMyQuizzes = () => {
+        const token = Cookies.get('token');
+        if (!token) {
+            message.warning('Для просмотра своих квизов необходимо войти в аккаунт');
+        } else {
+            navigate('/myquizzes');
+        }
+    };
+
     return (
         <Layout>
             <HeaderComponent />
+
+            <Card 
+                style={{ 
+                    margin: '16px 40px',
+                    borderRadius: '8px',
+                    backgroundColor: '#f0f2f5'
+                }}
+                bodyStyle={{ padding: '16px 24px' }}
+            >
+                <Space style={{ width: '100%', justifyContent: 'space-between', flexWrap: 'wrap' }}>
+                    <Typography.Text style={{ fontSize: '16px' }}>
+                        Создание квизов: Вы можете создать свои уникальные викторины и отслеживать статистику прохождения
+                    </Typography.Text>
+                    <Space>
+                        <Button type="primary" onClick={handleCreateQuiz}>Создать квиз</Button>
+                        <Button onClick={handleMyQuizzes}>Мои квизы</Button>
+                    </Space>
+                </Space>
+            </Card>
 
             <div style={{ padding: "24px 40px" }}>
             <Title level={2}>Все квизы</Title>

@@ -12,7 +12,7 @@ import {
     CheckOutlined, CloseOutlined, InfoCircleOutlined
 } from '@ant-design/icons';
 import * as api from '../API methods/attemptMethods.jsx';
-import * as quizApi from '../API methods/quizMethods.jsx';
+import HeaderComponent from '../components/HeaderComponent.jsx';
 
 const { Title, Text, Paragraph } = Typography;
 
@@ -193,8 +193,10 @@ export default function QuizResult() {
     }
 
     return (
-        <div style={{ padding: 24, maxWidth: 1200, margin: '0 auto' }}>
-            {/* Заголовок */}
+        <Layout>
+            <HeaderComponent />
+            <div style={{ padding: 24, maxWidth: 1200, margin: '0 auto' }}>
+            
             <Row justify="center" style={{ marginBottom: 32 }}>
                 <Col>
                     <Title level={2}>
@@ -407,5 +409,7 @@ export default function QuizResult() {
                 </Space>
             </Row>
         </div>
+        </Layout>
+        
     );
 }

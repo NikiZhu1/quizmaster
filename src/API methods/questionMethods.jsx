@@ -58,7 +58,7 @@ export const getQuestionOptions = async (questionId) => {
  * @param {Array} questionData.options - Массив опций
  * @returns {Promise<Object>} - Созданный вопрос
  */
-export const createQuestion = async (questionData) => {
+export const createQuestion = async (questionData, token = null) => {
   // Валидация данных
   if (!questionData.text || questionData.text.trim() === '') {
     throw new Error('Текст вопроса обязателен');
@@ -87,7 +87,12 @@ export const createQuestion = async (questionData) => {
   };
 
   try {
-    const response = await apiClient.post('/Question', payload);
+    const headers = {};
+    if (token) {
+      headers['Authorization'] = `Bearer ${token}`;
+    }
+    
+    const response = await apiClient.post('/Question', payload, { headers });
     console.log('Вопрос успешно создан:', response.data);
     return response.data;
   } catch (error) {
@@ -98,8 +103,12 @@ export const createQuestion = async (questionData) => {
     }
     
     if (error.response?.status === 400) {
-      const errorMsg = error.response.data?.error || 'Неверные данные для создания вопроса';
+      const errorMsg = error.response.data?.error || error.response.data?.message || 'Неверные данные для создания вопроса';
       throw new Error(errorMsg);
+    }
+    
+    if (error.response?.status === 401) {
+      throw new Error('Ошибка авторизации. Пожалуйста, войдите снова.');
     }
     
     throw error;

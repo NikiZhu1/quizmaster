@@ -10,6 +10,7 @@ import {
     RightOutlined, CheckOutlined, SaveOutlined
 } from '@ant-design/icons';
 import { useQuizAttempt } from '../hooks/useQuizAttempt';
+import HeaderComponent from '../components/HeaderComponent';
 
 const { Header, Content, Sider } = Layout;
 const { Title, Text, Paragraph } = Typography;
@@ -284,7 +285,8 @@ export default function QuizAttempt() {
 
     return (
         <Layout style={{ minHeight: '100vh' }}>
-            {/* Шапка с названием, таймером и номером вопроса */}
+            <HeaderComponent />
+            {/* Шапка с таймером и прогрессом */}
             <Header style={{ 
                 background: '#fff', 
                 padding: '0 24px',

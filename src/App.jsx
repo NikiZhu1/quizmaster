@@ -6,7 +6,8 @@ import Login from './pages/Login';
 import Register from './pages/Register';
 import QuizAttempt from './pages/QuizAttempt';
 import QuizResult from './pages/QuizResult';
-import HeaderComponent from './components/HeaderComponent';
+import CreateQuiz from './pages/CreateQuiz';
+import CreateQuestions from './pages/CreateQuestions';
 
 const { Content } = Layout;
 
@@ -18,6 +19,8 @@ export default function App() {
             <Route path="/" element={<Catalog />} />
             <Route path="/login" element={<Login />} />
             <Route path="/register" element={<Register />} />
+            <Route path="/newquiz" element={<CreateQuiz />} />
+            <Route path="/quiz/:quizId/questions" element={<CreateQuestions />} />
             <Route path="/quiz/:quizId" element={<QuizAttempt />} />
             <Route path="/quiz-result/:attemptId" element={<QuizResult />} />
             {/* Остальные роуты пока закомментированы */}
