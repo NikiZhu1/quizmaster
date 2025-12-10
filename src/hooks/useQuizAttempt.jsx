@@ -5,14 +5,35 @@ import Cookies from 'js-cookie';
 
 export const useQuizAttempt = () => {
   const [attempt, setAttempt] = useState(null);
+  const [quizInfo, setQuizInfo] = useState(null); // Добавляем для хранения информации о квизе
   const [questions, setQuestions] = useState([]);
   const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0);
   const [answers, setAnswers] = useState({}); // Сохраняем {questionId: [optionIds]}
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
-  const [timeLeft, setTimeLeft] = useState(null);
+  const [timeLeft, setTimeLeft] = useState(null); // Оставшееся время в секундах
   const [visitedQuestions, setVisitedQuestions] = useState(new Set());
   const timerRef = useRef(null);
+
+  // Функция для преобразования строки времени "00:10:47" в секунды
+  const parseTimeStringToSeconds = (timeString) => {
+    if (!timeString) return null;
+    
+    try {
+      // Формат: "00:10:47" (часы:минуты:секунды)
+      const parts = timeString.split(':');
+      if (parts.length === 3) {
+        const hours = parseInt(parts[0]) || 0;
+        const minutes = parseInt(parts[1]) || 0;
+        const seconds = parseInt(parts[2]) || 0;
+        return hours * 3600 + minutes * 60 + seconds;
+      }
+      return null;
+    } catch (error) {
+      console.error('Ошибка парсинга времени:', error);
+      return null;
+    }
+  };
 
   // Начать попытку
   const startQuizAttempt = async (quizId, accessKey = null) => {
@@ -23,17 +44,27 @@ export const useQuizAttempt = () => {
       // Начинаем попытку
       const attemptData = await api.startAttempt(quizId);
       setAttempt(attemptData);
-      console.log(attemptData.guestSessionId)
-      console.log("GHBDRN!!!!")
-      Cookies.set('guestSessionId', attemptData.guestSessionId, { expires: 1, secure: true, sameSite: 'Strict' });
+      
+      // Сохраняем guestSessionId если есть
+      if (attemptData.guestSessionId) {
+        Cookies.set('guestSessionId', attemptData.guestSessionId, { expires: 1 });
+      }
+      
+      // Получаем информацию о квизе (чтобы узнать timeLimit)
+      const quizData = await quizApi.getQuizById(quizId);
+      setQuizInfo(quizData);
       
       // Получаем вопросы квиза
       const questionsData = await quizApi.getQuizQuestions(quizId, accessKey);
       setQuestions(questionsData);
       
       // Устанавливаем таймер, если есть ограничение по времени
-      if (attemptData.timeLimit) {
-        startTimer(attemptData.timeLimit);
+      if (quizData.timeLimit) {
+        const totalSeconds = parseTimeStringToSeconds(quizData.timeLimit);
+        if (totalSeconds && totalSeconds > 0) {
+          setTimeLeft(totalSeconds);
+          startTimer(totalSeconds);
+        }
       }
       
       return attemptData;
@@ -45,10 +76,8 @@ export const useQuizAttempt = () => {
     }
   };
 
-  // Таймер
+  // Таймер обратного отсчета
   const startTimer = (totalSeconds) => {
-    setTimeLeft(totalSeconds);
-    
     if (timerRef.current) {
       clearInterval(timerRef.current);
     }
@@ -131,17 +160,20 @@ export const useQuizAttempt = () => {
         };
       });
       
-      // Если есть вопросы без ответов, добавляем пустые ответы
+      // ВОТ ИСПРАВЛЕНИЕ ДЛЯ ВТОРОЙ ПРОБЛЕМЫ:
+      // Добавляем пустые ответы для ВСЕХ вопросов, даже если на них не отвечали
       questions.forEach(question => {
         if (!answers[question.id]) {
           formattedAnswers.push({
             questionId: question.id,
-            selectedOptionIds: []
+            selectedOptionIds: [] // Пустой массив для вопросов без ответа
           });
         }
       });
       
       console.log('Отправляемые ответы:', formattedAnswers);
+      console.log('Всего вопросов:', questions.length);
+      console.log('Ответов сформировано:', formattedAnswers.length);
       
       // Завершаем попытку
       const result = await api.finishAttempt(attempt.id, formattedAnswers);
@@ -153,6 +185,7 @@ export const useQuizAttempt = () => {
       
       // Сбрасываем состояние
       setAttempt(null);
+      setQuizInfo(null);
       setQuestions([]);
       setCurrentQuestionIndex(0);
       setAnswers({});
@@ -185,6 +218,9 @@ export const useQuizAttempt = () => {
   // Количество отвеченных вопросов
   const answeredCount = Object.keys(answers).length;
 
+  // Есть ли у квиза ограничение по времени
+  const hasTimeLimit = quizInfo && quizInfo.timeLimit;
+
   // Очистка при размонтировании
   useEffect(() => {
     return () => {
@@ -197,6 +233,7 @@ export const useQuizAttempt = () => {
   return {
     // Состояние
     attempt,
+    quizInfo, // Добавляем информацию о квизе
     questions,
     currentQuestion,
     currentQuestionIndex,
@@ -208,6 +245,7 @@ export const useQuizAttempt = () => {
     progress,
     answeredCount,
     visitedQuestions,
+    hasTimeLimit, // Добавляем флаг наличия тайм-лимита
     
     // Методы
     startQuizAttempt,

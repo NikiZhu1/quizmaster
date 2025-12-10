@@ -2,12 +2,12 @@ import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { 
     Layout, Row, Col, Card, Radio, Checkbox, Button, Space, 
-    Typography, Progress, Statistic, Alert, Spin, Divider, Tooltip 
+    Typography, Alert, Spin, Divider, Tooltip 
 } from 'antd';
 import { 
-    LeftOutlined, RightOutlined, ClockCircleOutlined, 
+    LeftOutlined, 
     QuestionCircleOutlined, CheckCircleOutlined,
-    ArrowRightOutlined, CheckOutlined, SaveOutlined
+    RightOutlined, CheckOutlined, SaveOutlined
 } from '@ant-design/icons';
 import { useQuizAttempt } from '../hooks/useQuizAttempt';
 
@@ -20,6 +20,7 @@ export default function QuizAttempt() {
     
     const {
         attempt,
+        quizInfo,
         questions,
         currentQuestion,
         currentQuestionIndex,
@@ -30,17 +31,19 @@ export default function QuizAttempt() {
         timeLeft,
         progress,
         answeredCount,
+        visitedQuestions,
+        hasTimeLimit,
         startQuizAttempt,
         saveAnswer,
         goToNextQuestion,
         goToPreviousQuestion,
         goToQuestion,
         finishQuizAttempt,
+        markQuestionAsVisited,
         cleanup
     } = useQuizAttempt();
 
     const [submitting, setSubmitting] = useState(false);
-    const [visitedQuestions, setVisitedQuestions] = useState(new Set());
 
     // Начинаем попытку при загрузке страницы
     useEffect(() => {
@@ -59,12 +62,21 @@ export default function QuizAttempt() {
         return cleanup;
     }, [quizId]);
 
+    // Обновляем состояние выбора ответа
+    useEffect(() => {
+        if (currentQuestion && currentAnswer) {
+            const hasAnswer = currentQuestion.type === 0 
+                ? currentAnswer.length > 0 
+                : currentAnswer.length > 0;
+        }
+    }, [currentQuestion, currentAnswer]);
+
     // Отмечаем вопрос как посещенный при загрузке
     useEffect(() => {
         if (currentQuestion) {
-            setVisitedQuestions(prev => new Set([...prev, currentQuestion.id]));
+            markQuestionAsVisited(currentQuestion.id);
         }
-    }, [currentQuestion]);
+    }, [currentQuestion, markQuestionAsVisited]);
 
     // Обработчик выбора ответа
     const handleAnswerSelect = (optionId) => {
@@ -107,6 +119,9 @@ export default function QuizAttempt() {
     const handleNextQuestion = () => {
         if (currentQuestionIndex < questions.length - 1) {
             goToNextQuestion();
+        } else {
+            // Если это последний вопрос, показываем кнопку завершения
+            handleFinishQuiz();
         }
     };
 
@@ -117,7 +132,7 @@ export default function QuizAttempt() {
         }
     };
 
-    // Завершение квиза
+    // Завершение квиза (ручное)
     const handleFinishQuiz = async () => {
         if (window.confirm('Вы уверены, что хотите завершить квиз?')) {
             setSubmitting(true);
@@ -133,11 +148,81 @@ export default function QuizAttempt() {
     };
 
     // Автоматическое завершение при истечении времени
-    useEffect(() => {
-        if (timeLeft === 0) {
-            handleFinishQuiz();
+    const handleTimeExpired = async () => {
+        setSubmitting(true);
+        try {
+            const result = await finishQuizAttempt();
+            navigate(`/quiz-result/${result.id}`);
+        } catch (err) {
+            console.error('Ошибка завершения квиза:', err);
+        } finally {
+            setSubmitting(false);
         }
-    }, [timeLeft]);
+    };
+
+    // Автоматическое завершение при истечении времени
+    useEffect(() => {
+        if (timeLeft === 0 && hasTimeLimit) {
+            window.alert('Время, отведенное на прохождение викторины, закончилось. Викторина будет автоматически завершена.');
+            handleTimeExpired();
+        }
+    }, [timeLeft, hasTimeLimit]);
+
+    // Функция для форматирования секунд в ЧЧ:ММ:СС
+    const formatTimeToHHMMSS = (seconds) => {
+        if (!seconds && seconds !== 0) return "Не ограничено";
+        
+        const hours = Math.floor(seconds / 3600);
+        const minutes = Math.floor((seconds % 3600) / 60);
+        const secs = seconds % 60;
+        
+        // Форматируем с ведущими нулями
+        const formattedHours = hours.toString().padStart(2, '0');
+        const formattedMinutes = minutes.toString().padStart(2, '0');
+        const formattedSeconds = secs.toString().padStart(2, '0');
+        
+        return `${formattedHours}:${formattedMinutes}:${formattedSeconds}`;
+    };
+
+    // Функция для форматирования времени с текстовыми единицами
+    const formatTimeWithUnits = (seconds) => {
+        if (!seconds && seconds !== 0) return "Не ограничено";
+        
+        const hours = Math.floor(seconds / 3600);
+        const minutes = Math.floor((seconds % 3600) / 60);
+        const secs = seconds % 60;
+        
+        const parts = [];
+        if (hours > 0) parts.push(`${hours}ч`);
+        if (minutes > 0) parts.push(`${minutes}м`);
+        if (secs > 0 || parts.length === 0) parts.push(`${secs}с`);
+        
+        return parts.join(' ');
+    };
+
+    // Функция для форматирования строки времени из API
+    const formatTimeLimit = (timeString) => {
+        if (!timeString) return "Не ограничено";
+        
+        try {
+            const parts = timeString.split(':');
+            if (parts.length === 3) {
+                const hours = parseInt(parts[0]);
+                const minutes = parseInt(parts[1]);
+                const seconds = parseInt(parts[2]);
+                
+                const timeParts = [];
+                if (hours > 0) timeParts.push(`${hours}ч`);
+                if (minutes > 0) timeParts.push(`${minutes}м`);
+                if (seconds > 0) timeParts.push(`${seconds}с`);
+                
+                return timeParts.join(' ');
+            }
+            return timeString;
+        } catch {
+            return timeString;
+        }
+    };
 
     if (loading && !attempt) {
         return (
@@ -191,44 +276,57 @@ export default function QuizAttempt() {
     const isLastQuestion = currentQuestionIndex >= questions.length - 1;
     const isQuestionAnswered = currentAnswer && currentAnswer.length > 0;
 
+    // Функция для обрезки названия квиза
+    const truncateTitle = (title) => {
+        if (!title) return 'Квиз';
+        return title.length > 50 ? title.substring(0, 50) + '...' : title;
+    };
+
     return (
         <Layout style={{ minHeight: '100vh' }}>
-            {/* Шапка с таймером и прогрессом */}
+            {/* Шапка с названием, таймером и номером вопроса */}
             <Header style={{ 
                 background: '#fff', 
                 padding: '0 24px',
-                boxShadow: '0 2px 8px rgba(0,0,0,0.06)'
+                boxShadow: '0 2px 8px rgba(0,0,0,0.06)',
+                height: 'auto',
+                minHeight: '64px'
             }}>
-                <Row justify="space-between" align="middle" style={{ height: '100%' }}>
+                <Row justify="center" align="middle" style={{ height: '100%', padding: '12px 0' }}>
                     <Col>
-                        <Space size="large">
-                            <Title level={4} style={{ margin: 0 }}>
-                                {questions[0]?.quizTitle || 'Квиз'}
+                        <Space direction="vertical" size="small" align="center" style={{ width: '100%' }}>
+                            <Title level={4} style={{ margin: 0, textAlign: 'center' }}>
+                                {truncateTitle(quizInfo?.title)}
                             </Title>
-                            <Text type="secondary">
-                                Вопрос {progress.current} из {progress.total}
-                            </Text>
-                        </Space>
-                    </Col>
-                    
-                    <Col>
-                        <Space size="large">
-                            {timeLeft !== null && (
-                                <Statistic
-                                    title="Осталось времени"
-                                    value={timeLeft}
-                                    prefix={<ClockCircleOutlined />}
-                                    suffix="сек"
-                                    valueStyle={{ color: timeLeft < 60 ? '#ff4d4f' : '#1890ff' }}
-                                />
+                            
+                            {/* Таймер обратного отсчета - показываем только если есть timeLimit */}
+                            {hasTimeLimit && timeLeft !== null && (
+                                <Space direction="vertical" size={0} align="center">
+                                    <div style={{ 
+                                        fontSize: '24px', 
+                                        fontWeight: 'bold',
+                                        color: timeLeft < 60 ? '#ff4d4f' : 
+                                               timeLeft < 300 ? '#faad14' : '#1890ff',
+                                        fontFamily: 'monospace',
+                                        letterSpacing: '1px',
+                                        lineHeight: 1
+                                    }}>
+                                        {formatTimeToHHMMSS(timeLeft)}
+                                    </div>
+                                    {timeLeft < 300 && (
+                                        <Text 
+                                            type={timeLeft < 60 ? 'danger' : 'warning'} 
+                                            style={{ fontSize: '12px', lineHeight: 1 }}
+                                        >
+                                            {timeLeft < 60 ? '⏳ Время почти вышло!' : '⚠ Времени осталось мало!'}
+                                        </Text>
+                                    )}
+                                </Space>
                             )}
                             
-                            <Progress
-                                type="circle"
-                                percent={progress.percentage}
-                                width={50}
-                                format={() => `${progress.current}/${progress.total}`}
-                            />
+                            <Text type="secondary" style={{ textAlign: 'center' }}>
+                                Вопрос {progress.current} из {progress.total}
+                            </Text>
                         </Space>
                     </Col>
                 </Row>
@@ -339,12 +437,14 @@ export default function QuizAttempt() {
                         }
                         style={{ minHeight: '60vh' }}
                         extra={
-                            isQuestionAnswered && (
-                                <Space>
-                                    <SaveOutlined style={{ color: '#52c41a' }} />
-                                    <Text type="success">Ответ сохранен</Text>
-                                </Space>
-                            )
+                            <Space>
+                                {isQuestionAnswered && (
+                                    <Space>
+                                        <SaveOutlined style={{ color: '#52c41a' }} />
+                                        <Text type="success">Ответ сохранен</Text>
+                                    </Space>
+                                )}
+                            </Space>
                         }
                     >
                         <Space direction="vertical" size="large" style={{ width: '100%' }}>
@@ -404,14 +504,13 @@ export default function QuizAttempt() {
                                         {!isLastQuestion ? (
                                             <Button
                                                 type="primary"
-                                                icon={<ArrowRightOutlined />}
                                                 onClick={handleNextQuestion}
                                                 size="large"
                                                 style={{ minWidth: 180 }}
                                             >
                                                 <Space>
                                                     Следующий вопрос
-                                                    <ArrowRightOutlined />
+                                                    <RightOutlined />
                                                 </Space>
                                             </Button>
                                         ) : (
@@ -433,31 +532,11 @@ export default function QuizAttempt() {
                             {/* Информация о прогрессе */}
                             <Divider style={{ margin: '16px 0' }} />
                             
-                            <Row justify="space-between">
+                            <Row justify="center">
                                 <Col>
                                     <Text type="secondary">
                                         Отвечено вопросов: {answeredCount} из {questions.length}
                                     </Text>
-                                </Col>
-                                <Col>
-                                    <Text type="secondary">
-                                        Вопрос {progress.current} из {progress.total}
-                                    </Text>
-                                </Col>
-                            </Row>
-                            
-                            {/* Статус текущего вопроса */}
-                            <Row>
-                                <Col>
-                                    {isQuestionAnswered ? (
-                                        <Text type="success">
-                                            ✓ На этот вопрос дан ответ
-                                        </Text>
-                                    ) : (
-                                        <Text type="warning">
-                                            ⚠ На этот вопрос еще не дан ответ
-                                        </Text>
-                                    )}
                                 </Col>
                             </Row>
                         </Space>

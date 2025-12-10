@@ -21,28 +21,6 @@ export const startAttempt = async (quizId) => {
   }
 };
 
-// /**
-//  * Завершает попытку прохождения квиза
-//  * @param {number} attemptId - ID попытки
-//  * @param {Array} answers - Массив ответов
-//  * @returns {Promise<Object>} - Результат попытки
-//  */
-// export const finishAttempt = async (attemptId, answers) => {
-//   const token = Cookies.get('token');
-  
-//   try {
-//     const response = await apiClient.post(`/attempt/${attemptId}/stop`, {
-//       answers: answers
-//     }, {
-//       headers: token ? { Authorization: `Bearer ${token}` } : {}
-//     });
-//     return response.data;
-//   } catch (error) {
-//     console.error(`Ошибка при завершении попытки ${attemptId}:`, error);
-//     throw error;
-//   }
-// };
-
 /**
  * Завершает попытку прохождения квиза
  * @param {number} attemptId - ID попытки
