@@ -1,4 +1,5 @@
 import apiClient from './.APIclient';
+import { GetUserIdFromJWT } from './usersMethods';
 
 /**
  * Получает все квизы с сервера
@@ -234,6 +235,75 @@ export const getQuizQuestionsDetailed = async (quizId, accessKey = null) => {
     return questions;
   } catch (error) {
     console.error(`Ошибка при получении вопросов квиза ${quizId}:`, error);
+    throw error;
+  }
+};
+
+/**
+ * Получает квизы пользователя
+ * @param {string} token - Токен авторизации
+ * @returns {Promise<Array>} - Массив квизов пользователя
+ */
+export const getUserQuizzes = async (token) => {
+  if (!token) {
+    throw new Error('Токен авторизации обязателен');
+  }
+
+  try {
+    // Пробуем несколько вариантов эндпоинтов
+    const endpoints = ['/Quiz/user', '/Quiz/my', '/Quiz/byUser'];
+    let lastError = null;
+
+    for (const endpoint of endpoints) {
+      try {
+        const response = await apiClient.get(endpoint, {
+          headers: {
+            'Authorization': `Bearer ${token}`
+          }
+        });
+        console.log(`Успешно получены квизы через ${endpoint}:`, response.data);
+        return response.data;
+      } catch (err) {
+        lastError = err;
+        console.log(`Эндпоинт ${endpoint} не сработал:`, err.response?.status, err.response?.data);
+        // Если это не 400 или 404, прекращаем попытки
+        if (err.response?.status !== 400 && err.response?.status !== 404) {
+          throw err;
+        }
+      }
+    }
+
+    // Если все эндпоинты вернули ошибку, пробуем получить userId и использовать его
+    if (lastError?.response?.status === 400) {
+      try {
+        const userId = GetUserIdFromJWT(token);
+        
+        if (userId) {
+          console.log(`Пробуем получить квизы через userId: ${userId}`);
+          // Пробуем получить все квизы и отфильтровать на клиенте
+          const allQuizzes = await getAllQuizzes();
+          // Фильтруем квизы по userId (предполагая, что в объекте квиза есть поле creatorId или userId)
+          const userQuizzes = allQuizzes.filter(quiz => 
+            quiz.userId === userId || 
+            quiz.creatorId === userId || 
+            quiz.authorId === userId
+          );
+          console.log('Отфильтрованные квизы пользователя:', userQuizzes);
+          return userQuizzes;
+        }
+      } catch (filterError) {
+        console.error('Ошибка при фильтрации квизов:', filterError);
+      }
+    }
+
+    // Если ничего не помогло, выбрасываем последнюю ошибку
+    console.error('Ошибка при получении квизов пользователя:', lastError);
+    if (lastError.response?.data) {
+      console.error('Данные ошибки от сервера:', lastError.response.data);
+    }
+    throw lastError;
+  } catch (error) {
+    console.error('Ошибка при получении квизов пользователя:', error);
     throw error;
   }
 };

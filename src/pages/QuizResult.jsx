@@ -1,9 +1,9 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { 
     Card, Row, Col, Statistic, Progress, Button, 
     Typography, Space, List, Tag, Alert, Descriptions, Layout, 
-    Divider, Tooltip
+    Divider, Tooltip, Radio, Checkbox
 } from 'antd';
 import { 
     CheckCircleOutlined, ClockCircleOutlined, 
@@ -31,22 +31,41 @@ export default function QuizResult() {
     useEffect(() => {
         const loadResult = async () => {
             try {
-                // 1. Загружаем попытку и ответы
-                const [attemptData, answersData] = await Promise.all([
-                    api.getAttemptById(attemptId),
-                    api.getAttemptAnswers(attemptId)
-                ]);
-                
+                // 1. Загружаем попытку
+                const attemptData = await api.getAttemptById(attemptId);
+                console.log('Данные попытки:', attemptData);
                 setResult(attemptData);
-                setAnswers(answersData);
                 
-                // 2. Загружаем информацию о квизе
+                // 2. Пытаемся загрузить ответы (может быть недоступно)
+                // Передаем данные попытки, чтобы использовать правильный userId/guestSessionId
+                let answersData = [];
+                try {
+                    answersData = await api.getAttemptAnswers(attemptId, attemptData);
+                    console.log('Успешно загружены ответы:', answersData);
+                    setAnswers(answersData);
+                } catch (answersError) {
+                    console.warn('Не удалось загрузить ответы попытки:', answersError);
+                    console.warn('Детали ошибки:', {
+                        message: answersError.message,
+                        response: answersError.response?.data,
+                        status: answersError.response?.status,
+                        attemptData: {
+                            userId: attemptData?.userId,
+                            guestSessionId: attemptData?.guestSessionId
+                        }
+                    });
+                    // Продолжаем работу без ответов - покажем вопросы без ответов пользователя
+                    setAnswers([]);
+                    // Не устанавливаем error, так как мы можем показать вопросы без ответов
+                }
+                
+                // 3. Загружаем информацию о квизе
                 if (attemptData.quizId) {
                     try {
                         const quizData = await quizApi.getQuizById(attemptData.quizId);
                         setQuizInfo(quizData);
                         
-                        // 3. Загружаем вопросы квиза, чтобы знать общее количество
+                        // 4. Загружаем вопросы квиза
                         const questionsData = await quizApi.getQuizQuestions(attemptData.quizId);
                         setQuestions(questionsData);
                     } catch (quizError) {
@@ -165,6 +184,49 @@ export default function QuizResult() {
         if (percent >= 40) return 'Плохо 😕';
         return 'Очень плохо 😢';
     };
+
+    // Создаем мапу ответов по questionId для быстрого поиска
+    const answersMap = useMemo(() => {
+        const map = new Map();
+        answers.forEach(answer => {
+            // Обрабатываем как chosenOptionId (одиночный выбор), так и selectedOptionIds (множественный)
+            const selectedIds = answer.selectedOptionIds || 
+                               (answer.chosenOptionId ? [answer.chosenOptionId] : []);
+            map.set(answer.questionId, selectedIds);
+        });
+        return map;
+    }, [answers]);
+
+    // Объединяем вопросы с ответами
+    const questionsWithAnswers = useMemo(() => {
+        return questions.map((question, index) => {
+            const userSelectedIds = answersMap.get(question.id) || [];
+            const correctOptionIds = question.options
+                ?.filter(opt => opt.isCorrect !== undefined && opt.isCorrect)
+                .map(opt => opt.id) || [];
+            
+            // Проверяем, правильно ли ответил пользователь
+            // Если информация о правильных ответах недоступна, считаем, что мы не знаем результат
+            const hasCorrectInfo = correctOptionIds.length > 0 || 
+                                  (question.options && question.options.some(opt => opt.isCorrect === false));
+            
+            const isCorrect = hasCorrectInfo && question.options && correctOptionIds.length > 0
+                ? correctOptionIds.length === userSelectedIds.length &&
+                  correctOptionIds.every(id => userSelectedIds.includes(id)) &&
+                  userSelectedIds.every(id => correctOptionIds.includes(id))
+                : null; // null означает, что мы не знаем, правильный ли ответ
+
+            return {
+                ...question,
+                questionNumber: index + 1,
+                userSelectedIds,
+                correctOptionIds,
+                isCorrect,
+                hasAnswer: userSelectedIds.length > 0,
+                hasCorrectInfo
+            };
+        });
+    }, [questions, answersMap]);
 
     if (loading) {
         return (
@@ -293,22 +355,26 @@ export default function QuizResult() {
                     <QuestionCircleOutlined /> Детали ответов
                 </Title>
                 
-                {answers.length === 0 ? (
+                {questionsWithAnswers.length === 0 ? (
                     <Alert
-                        message="Нет данных об ответах"
-                        description="Информация о ваших ответах не найдена."
+                        message="Нет данных о вопросах"
+                        description="Информация о вопросах квиза не найдена."
                         type="info"
+                        showIcon
+                        style={{ marginBottom: 16 }}
+                    />
+                ) : answers.length === 0 && questions.length > 0 ? (
+                    <Alert
+                        message="Ответы недоступны"
+                        description="Не удалось загрузить ваши ответы. Возможные причины: вы не авторизованы, это не ваша попытка, или сессия гостя истекла. Вопросы показаны без ваших ответов."
+                        type="warning"
                         showIcon
                         style={{ marginBottom: 16 }}
                     />
                 ) : (
                     <Alert
-                        message={`Показаны ${answers.length} из ${totalQuestions} вопросов`}
-                        description={
-                            totalQuestions > answers.length 
-                                ? `На ${totalQuestions - answers.length} вопросов не было дано ответов` 
-                                : 'Все вопросы получены'
-                        }
+                        message={`Показаны все ${questionsWithAnswers.length} вопросов`}
+                        description="Просмотрите каждый вопрос с вашими ответами и правильными вариантами."
                         type="info"
                         showIcon
                         style={{ marginBottom: 16 }}
@@ -316,74 +382,222 @@ export default function QuizResult() {
                 )}
                 
                 <List
-                    dataSource={answers}
-                    renderItem={(answer, index) => (
-                        <List.Item 
-                            style={{ 
-                                borderBottom: '1px solid #f0f0f0', 
-                                padding: '16px 0',
-                                backgroundColor: index % 2 === 0 ? '#fafafa' : 'white'
-                            }}
-                        >
-                            <Space direction="vertical" style={{ width: '100%' }}>
-                                <Row justify="space-between" align="middle">
-                                    <Col>
-                                        <Text strong style={{ fontSize: '16px' }}>
-                                            <QuestionCircleOutlined /> Вопрос {index + 1}
-                                        </Text>
-                                    </Col>
-                                    <Col>
-                                        <Tooltip title="ID вопроса">
-                                            <Tag color="blue">ID: {answer.questionId}</Tag>
-                                        </Tooltip>
-                                    </Col>
-                                </Row>
-                                
-                                <Divider style={{ margin: '8px 0' }} />
-                                
-                                <Row gutter={[16, 16]}>
-                                    <Col xs={24} md={12}>
-                                        <Space direction="vertical" size="small" style={{ width: '100%' }}>
-                                            <Text strong>Статус ответа:</Text>
-                                            {answer.chosenOptionId ? (
-                                                <Space>
-                                                    <CheckOutlined style={{ color: '#52c41a' }} />
-                                                    <Text type="success">Ответ предоставлен</Text>
-                                                </Space>
-                                            ) : (
-                                                <Space>
-                                                    <CloseOutlined style={{ color: '#ff4d4f' }} />
-                                                    <Text type="danger">Ответ не предоставлен</Text>
-                                                </Space>
-                                            )}
-                                        </Space>
-                                    </Col>
+                    dataSource={questionsWithAnswers}
+                    renderItem={(questionData) => {
+                        const { questionNumber, text, options, type, userSelectedIds, correctOptionIds, isCorrect, hasAnswer, hasCorrectInfo } = questionData;
+                        
+                        return (
+                            <List.Item 
+                                style={{ 
+                                    borderBottom: '2px solid #e8e8e8', 
+                                    padding: '24px 0',
+                                    marginBottom: '16px',
+                                    backgroundColor: 'white'
+                                }}
+                            >
+                                <Space direction="vertical" style={{ width: '100%' }} size="large">
+                                    {/* Заголовок вопроса */}
+                                    <Row justify="space-between" align="middle">
+                                        <Col flex="auto">
+                                            <Space>
+                                                <Text strong style={{ fontSize: '18px' }}>
+                                                    <QuestionCircleOutlined /> Вопрос {questionNumber}
+                                                </Text>
+                                                {hasAnswer ? (
+                                                    isCorrect === true ? (
+                                                        <Tag color="success" icon={<CheckCircleOutlined />}>
+                                                            Правильно
+                                                        </Tag>
+                                                    ) : isCorrect === false ? (
+                                                        <Tag color="error" icon={<CloseCircleOutlined />}>
+                                                            Неправильно
+                                                        </Tag>
+                                                    ) : (
+                                                        <Tag color="default" icon={<InfoCircleOutlined />}>
+                                                            Ответ предоставлен
+                                                        </Tag>
+                                                    )
+                                                ) : (
+                                                    <Tag color="warning" icon={<InfoCircleOutlined />}>
+                                                        Без ответа
+                                                    </Tag>
+                                                )}
+                                                {type === 0 && (
+                                                    <Tag color="blue">Одиночный выбор</Tag>
+                                                )}
+                                                {type === 1 && (
+                                                    <Tag color="purple">Множественный выбор</Tag>
+                                                )}
+                                            </Space>
+                                        </Col>
+                                    </Row>
                                     
-                                    <Col xs={24} md={12}>
-                                        <Space direction="vertical" size="small" style={{ width: '100%' }}>
-                                            <Text strong>Выбранный вариант:</Text>
-                                            <Text>
-                                                {answer.chosenOptionId 
-                                                    ? `ID варианта: ${answer.chosenOptionId}` 
-                                                    : 'Не выбран'}
-                                            </Text>
-                                        </Space>
-                                    </Col>
-                                </Row>
-                            </Space>
-                        </List.Item>
-                    )}
+                                    {/* Текст вопроса */}
+                                    <Card 
+                                        size="small" 
+                                        style={{ 
+                                            backgroundColor: '#fafafa',
+                                            border: '1px solid #e8e8e8'
+                                        }}
+                                    >
+                                        <Paragraph style={{ fontSize: '16px', margin: 0 }}>
+                                            {text}
+                                        </Paragraph>
+                                    </Card>
+                                    
+                                    {/* Варианты ответов */}
+                                    <Space direction="vertical" style={{ width: '100%' }} size="middle">
+                                        <Text strong style={{ fontSize: '14px', color: '#595959' }}>
+                                            Варианты ответа:
+                                        </Text>
+                                        {options && options.length > 0 ? (
+                                            options.map((option) => {
+                                                const isCorrectOption = correctOptionIds.includes(option.id);
+                                                const isUserSelected = userSelectedIds.includes(option.id);
+                                                
+                                                // Определяем стиль в зависимости от статуса
+                                                let borderColor = '#d9d9d9';
+                                                let backgroundColor = '#ffffff';
+                                                let borderWidth = '1px';
+                                                let icon = null;
+                                                
+                                                if (isCorrectOption && isUserSelected) {
+                                                    // Правильный и выбранный пользователем
+                                                    borderColor = '#52c41a';
+                                                    backgroundColor = '#f6ffed';
+                                                    borderWidth = '2px';
+                                                    icon = <CheckCircleOutlined style={{ color: '#52c41a' }} />;
+                                                } else if (isCorrectOption) {
+                                                    // Правильный, но не выбранный
+                                                    borderColor = '#52c41a';
+                                                    backgroundColor = '#f6ffed';
+                                                    borderWidth = '2px';
+                                                    icon = <CheckCircleOutlined style={{ color: '#52c41a' }} />;
+                                                } else if (isUserSelected) {
+                                                    // Выбранный пользователем, но неправильный
+                                                    borderColor = '#ff4d4f';
+                                                    backgroundColor = '#fff1f0';
+                                                    borderWidth = '2px';
+                                                    icon = <CloseCircleOutlined style={{ color: '#ff4d4f' }} />;
+                                                }
+                                                
+                                                return (
+                                                    <Card
+                                                        key={option.id}
+                                                        style={{
+                                                            borderColor,
+                                                            backgroundColor,
+                                                            borderWidth,
+                                                            transition: 'all 0.2s',
+                                                            cursor: 'default'
+                                                        }}
+                                                        bodyStyle={{ padding: '12px 16px' }}
+                                                    >
+                                                        <Space>
+                                                            {type === 0 ? (
+                                                                <Radio 
+                                                                    checked={isUserSelected}
+                                                                    disabled
+                                                                />
+                                                            ) : (
+                                                                <Checkbox 
+                                                                    checked={isUserSelected}
+                                                                    disabled
+                                                                />
+                                                            )}
+                                                            <Text style={{ fontSize: '15px', flex: 1 }}>
+                                                                {option.text}
+                                                            </Text>
+                                                            {icon && <Space>{icon}</Space>}
+                                                            {isCorrectOption && (
+                                                                <Tag color="success" style={{ margin: 0 }}>
+                                                                    Правильный ответ
+                                                                </Tag>
+                                                            )}
+                                                            {isUserSelected && !isCorrectOption && (
+                                                                <Tag color="error" style={{ margin: 0 }}>
+                                                                    Ваш ответ
+                                                                </Tag>
+                                                            )}
+                                                            {isUserSelected && isCorrectOption && (
+                                                                <Tag color="success" style={{ margin: 0 }}>
+                                                                    Ваш правильный ответ
+                                                                </Tag>
+                                                            )}
+                                                        </Space>
+                                                    </Card>
+                                                );
+                                            })
+                                        ) : (
+                                            <Alert
+                                                message="Варианты ответа не загружены"
+                                                type="warning"
+                                                showIcon
+                                            />
+                                        )}
+                                    </Space>
+                                    
+                                    {/* Итоговая информация по вопросу */}
+                                    <Divider style={{ margin: '8px 0' }} />
+                                    <Row gutter={16}>
+                                        <Col span={12}>
+                                            <Space direction="vertical" size="small">
+                                                <Text type="secondary" style={{ fontSize: '12px' }}>
+                                                    Правильные варианты:
+                                                </Text>
+                                                {hasCorrectInfo ? (
+                                                    correctOptionIds.length > 0 ? (
+                                                        <Space wrap>
+                                                            {correctOptionIds.map(id => {
+                                                                const option = options?.find(opt => opt.id === id);
+                                                                return (
+                                                                    <Tag key={id} color="success">
+                                                                        {option?.text || `ID: ${id}`}
+                                                                    </Tag>
+                                                                );
+                                                            })}
+                                                        </Space>
+                                                    ) : (
+                                                        <Text type="secondary">Правильных вариантов нет</Text>
+                                                    )
+                                                ) : (
+                                                    <Text type="secondary" style={{ fontStyle: 'italic' }}>
+                                                        Информация о правильных ответах недоступна
+                                                    </Text>
+                                                )}
+                                            </Space>
+                                        </Col>
+                                        <Col span={12}>
+                                            <Space direction="vertical" size="small">
+                                                <Text type="secondary" style={{ fontSize: '12px' }}>
+                                                    Ваши варианты:
+                                                </Text>
+                                                {userSelectedIds.length > 0 ? (
+                                                    <Space wrap>
+                                                        {userSelectedIds.map(id => {
+                                                            const option = options?.find(opt => opt.id === id);
+                                                            const isCorrect = hasCorrectInfo && correctOptionIds.includes(id);
+                                                            return (
+                                                                <Tag 
+                                                                    key={id} 
+                                                                    color={hasCorrectInfo ? (isCorrect ? "success" : "error") : "default"}
+                                                                >
+                                                                    {option?.text || `ID: ${id}`}
+                                                                </Tag>
+                                                            );
+                                                        })}
+                                                    </Space>
+                                                ) : (
+                                                    <Text type="danger">Ответ не предоставлен</Text>
+                                                )}
+                                            </Space>
+                                        </Col>
+                                    </Row>
+                                </Space>
+                            </List.Item>
+                        );
+                    }}
                 />
-                
-                {totalQuestions > answers.length && (
-                    <Alert
-                        message={`На ${totalQuestions - answers.length} вопросов не было дано ответов`}
-                        type="warning"
-                        showIcon
-                        style={{ marginTop: 16 }}
-                        description="Эти вопросы были учтены как неправильные при подсчете результата."
-                    />
-                )}
             </Card>
 
             {/* Кнопки действий */}

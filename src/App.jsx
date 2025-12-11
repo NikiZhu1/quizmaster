@@ -8,6 +8,8 @@ import QuizAttempt from './pages/QuizAttempt';
 import QuizResult from './pages/QuizResult';
 import CreateQuiz from './pages/CreateQuiz';
 import CreateQuestions from './pages/CreateQuestions';
+import MyQuizzes from './pages/MyQuizzes';
+import CompletedQuizzes from './pages/CompletedQuizzes';
 
 const { Content } = Layout;
 
@@ -23,6 +25,8 @@ export default function App() {
             <Route path="/quiz/:quizId/questions" element={<CreateQuestions />} />
             <Route path="/quiz/:quizId" element={<QuizAttempt />} />
             <Route path="/quiz-result/:attemptId" element={<QuizResult />} />
+            <Route path="/myquizzes" element={<MyQuizzes />} />
+            <Route path="/completedquizzes" element={<CompletedQuizzes />} />
             {/* Остальные роуты пока закомментированы */}
           </Routes>
       </Layout>

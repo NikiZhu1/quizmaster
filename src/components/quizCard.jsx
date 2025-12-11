@@ -42,7 +42,7 @@ function QuizCard({ quiz }) {
                     borderRadius: 8,
                     transition: 'all 0.3s',
                 }}
-                bodyStyle={{ padding: 16 }}
+                styles={{ body: { padding: 16 } }}
             >
                 <Space direction="vertical" size="small" style={{ width: '100%' }}>
                     <Title level={5} style={{ margin: 0 }}>

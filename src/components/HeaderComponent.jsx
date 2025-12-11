@@ -1,7 +1,10 @@
 import React, { useState, useEffect } from 'react';
-import { Layout, Breadcrumb, Flex, Button, Avatar, Dropdown, Space, Typography } from 'antd';
-import { HomeOutlined, UserOutlined, LoginOutlined, LogoutOutlined, SettingOutlined } from '@ant-design/icons';
-import { useNavigate } from 'react-router-dom';
+import { Layout, Flex, Button, Avatar, Dropdown, Space, Typography } from 'antd';
+import { 
+    HomeOutlined, UserOutlined, LoginOutlined, LogoutOutlined, SettingOutlined,
+    FileTextOutlined, TrophyOutlined
+} from '@ant-design/icons';
+import { useNavigate, useLocation } from 'react-router-dom';
 import Cookies from 'js-cookie';
 import { jwtDecode } from 'jwt-decode'; // для декодирования JWT
 
@@ -24,15 +27,31 @@ const HeaderStyle = {
 
 const HeaderComponent = () => {
   const navigate = useNavigate();
+  const location = useLocation();
   const {GetUserIdFromJWT, getUserInfo} = useUsers();
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [userName, setUserName] = useState('');
   const [userId, setUserId] = useState(null);
+  const [activeTab, setActiveTab] = useState('home');
 
   // Проверяем наличие токена и декодируем его при загрузке
   useEffect(() => {
     checkAuthentication();
   }, []);
+
+  // Определяем активную вкладку на основе текущего пути
+  useEffect(() => {
+    const path = location.pathname;
+    if (path === '/') {
+      setActiveTab('home');
+    } else if (path === '/myquizzes') {
+      setActiveTab('myquizzes');
+    } else if (path === '/completedquizzes') {
+      setActiveTab('completedquizzes');
+    } else {
+      setActiveTab('');
+    }
+  }, [location.pathname]);
 
   const checkAuthentication = async () => {
     const token = Cookies.get('token');
@@ -100,18 +119,70 @@ const HeaderComponent = () => {
     },
   ];
 
-  // Только "Главная" в хлебных крошках
-  const breadcrumbsItems = [
-    {
-      href: '/',
-      title: <><HomeOutlined /> Главная</>,
+  // Стили для активной вкладки
+  const getTabStyle = (key) => ({
+    height: '64px',
+    lineHeight: '64px',
+    padding: '0 16px',
+    border: 'none',
+    borderBottom: activeTab === key ? '2px solid #1890ff' : '2px solid transparent',
+    borderRadius: 0,
+    backgroundColor: 'transparent',
+    color: activeTab === key ? '#1890ff' : 'rgba(0, 0, 0, 0.85)',
+    cursor: 'pointer',
+    transition: 'all 0.3s',
+    fontWeight: activeTab === key ? 500 : 400,
+  });
+
+  const handleTabClick = (key) => {
+    switch (key) {
+      case 'home':
+        navigate('/');
+        break;
+      case 'myquizzes':
+        navigate('/myquizzes');
+        break;
+      case 'completedquizzes':
+        navigate('/completedquizzes');
+        break;
+      default:
+        break;
     }
-  ];
+  };
 
   return (
     <Header style={HeaderStyle}>
       <Flex justify='space-between' align='center' style={{ width: '100%', height: '100%' }}>
-        <Breadcrumb items={breadcrumbsItems} />
+        <Space size="small" style={{ flex: 1 }}>
+          {isAuthenticated && (
+            <Space size="small">
+              <Button
+                type="text"
+                icon={<HomeOutlined />}
+                style={getTabStyle('home')}
+                onClick={() => handleTabClick('home')}
+              >
+                Главная
+              </Button>
+              <Button
+                type="text"
+                icon={<FileTextOutlined />}
+                style={getTabStyle('myquizzes')}
+                onClick={() => handleTabClick('myquizzes')}
+              >
+                Мои квизы
+              </Button>
+              <Button
+                type="text"
+                icon={<TrophyOutlined />}
+                style={getTabStyle('completedquizzes')}
+                onClick={() => handleTabClick('completedquizzes')}
+              >
+                Пройденные квизы
+              </Button>
+            </Space>
+          )}
+        </Space>
         
         {isAuthenticated ? (
           <Dropdown menu={{ items: userMenuItems }} placement="bottomRight" arrow>

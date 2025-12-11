@@ -69,7 +69,7 @@ export default function Catalog() {
                     borderRadius: '8px',
                     backgroundColor: '#f0f2f5'
                 }}
-                bodyStyle={{ padding: '16px 24px' }}
+                styles={{ body: { padding: '16px 24px' } }}
             >
                 <Space style={{ width: '100%', justifyContent: 'space-between', flexWrap: 'wrap' }}>
                     <Typography.Text style={{ fontSize: '16px' }}>
