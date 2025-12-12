@@ -2,17 +2,22 @@ import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import {
     Layout, Card, Form, Input, Radio, Button, Space, Typography,
-    Checkbox, message, Row, Col, Divider, List, Empty, Popconfirm
+    Checkbox, message, Row, Col, Divider, List, Empty, Popconfirm,
+    TimePicker, Switch, Collapse
 } from 'antd';
 import {
     PlusOutlined, DeleteOutlined, SaveOutlined, QuestionCircleOutlined,
-    CheckCircleOutlined, ArrowLeftOutlined, CheckOutlined
+    CheckCircleOutlined, ArrowLeftOutlined, CheckOutlined,
+    ClockCircleOutlined, LockOutlined, GlobalOutlined, EditOutlined,
+    CaretRightFilled
 } from '@ant-design/icons';
 import Cookies from 'js-cookie';
+import dayjs from 'dayjs';
 import HeaderComponent from '../components/HeaderComponent';
 import { createQuestion } from '../API methods/questionMethods';
-import { getQuizById } from '../API methods/quizMethods';
+import { getQuizById, updateQuiz } from '../API methods/quizMethods';
 import { getQuizQuestions } from '../API methods/quizMethods';
+import '../App.css';
 
 const { Content } = Layout;
 const { Title, Text, Paragraph } = Typography;
@@ -22,11 +27,14 @@ export default function CreateQuestions() {
     const { quizId } = useParams();
     const navigate = useNavigate();
     const [form] = Form.useForm();
+    const [quizForm] = Form.useForm();
     const [loading, setLoading] = useState(false);
     const [quiz, setQuiz] = useState(null);
     const [questions, setQuestions] = useState([]);
     const [loadingQuiz, setLoadingQuiz] = useState(true);
     const [questionType, setQuestionType] = useState(0); // 0 - один вариант, 1 - несколько
+    const [hasTimeLimit, setHasTimeLimit] = useState(false);
+    const [savingQuiz, setSavingQuiz] = useState(false);
 
     useEffect(() => {
         loadQuizData();
@@ -37,6 +45,23 @@ export default function CreateQuestions() {
             setLoadingQuiz(true);
             const quizData = await getQuizById(quizId);
             setQuiz(quizData);
+
+            // Устанавливаем значения в форму редактирования
+            const timeLimitValue = quizData.timeLimit;
+            // Проверяем, есть ли лимит времени (не пустой и не "00:00:00")
+            const hasLimit = timeLimitValue && 
+                            timeLimitValue !== '00:00:00' && 
+                            timeLimitValue !== null && 
+                            timeLimitValue !== '';
+            setHasTimeLimit(hasLimit);
+            
+            quizForm.setFieldsValue({
+                title: quizData.title,
+                description: quizData.description || '',
+                accessMode: quizData.isPublic ? 'public' : 'private',
+                timeLimit: hasLimit && timeLimitValue ? dayjs(timeLimitValue, 'HH:mm:ss') : null,
+                category: quizData.category || quizData.categoryId || 0
+            });
 
             // Загружаем существующие вопросы
             try {
@@ -52,6 +77,52 @@ export default function CreateQuestions() {
             navigate('/');
         } finally {
             setLoadingQuiz(false);
+        }
+    };
+
+    const onQuizUpdate = async (values) => {
+        setSavingQuiz(true);
+        
+        try {
+            const token = Cookies.get('token');
+            
+            if (!token) {
+                message.error('Требуется авторизация');
+                navigate('/login');
+                return;
+            }
+
+            // Формируем данные для отправки
+            const quizData = {
+                title: values.title,
+                description: values.description || '',
+                category: values.category || 0,
+                isPublic: values.accessMode === 'public',
+                timeLimit: hasTimeLimit && values.timeLimit 
+                    ? dayjs(values.timeLimit).format('HH:mm:ss')
+                    : '00:00:00'
+            };
+
+            // Отправляем запрос на обновление квиза
+            await updateQuiz(token, quizId, quizData);
+
+            message.success('Информация о квизе успешно обновлена!');
+            
+            // Обновляем данные квиза
+            await loadQuizData();
+        } catch (error) {
+            console.error('Ошибка при обновлении квиза:', error);
+            
+            if (error.response?.status === 401) {
+                message.error('Ошибка авторизации. Пожалуйста, войдите снова.');
+                navigate('/login');
+            } else if (error.response?.status === 400) {
+                message.error(error.response.data?.message || 'Неверные данные для обновления квиза');
+            } else {
+                message.error(error.message || 'Ошибка при обновлении квиза. Попробуйте еще раз.');
+            }
+        } finally {
+            setSavingQuiz(false);
         }
     };
 
@@ -136,40 +207,162 @@ export default function CreateQuestions() {
                     </Card>
                 ) : (
                     <>
-                        {/* Информация о квизе */}
-                        <Card style={{ marginBottom: '24px' }}>
-                            <Space direction="vertical" style={{ width: '100%' }}>
-                                <Row justify="space-between" align="middle">
-                                    <Col>
-                                        <Space>
-                                            <Button
-                                                icon={<ArrowLeftOutlined />}
-                                                onClick={() => navigate('/')}
-                                            >
-                                                Назад
-                                            </Button>
+                        {/* Форма редактирования квиза */}
+                        <Collapse 
+                            style={{ marginBottom: '24px', background: '#fff', border: '1px solid #f0f0f0'}}
+                            bordered={true}
+                            defaultActiveKey={[]}
+                            items={[{
+                                key: '1',
+                                label: (
+                                    <Row justify="space-between" align="middle" style={{ width: '100%' }}>
+                                        <Col>
                                             <Title level={3} style={{ margin: 0 }}>
-                                                {quiz?.title || 'Квиз'}
+                                                Изменение квиза
                                             </Title>
-                                        </Space>
-                                        {quiz?.description && (
-                                            <Paragraph type="secondary" style={{ marginTop: '8px', marginBottom: 0 }}>
-                                                {quiz.description}
-                                            </Paragraph>
-                                        )}
-                                    </Col>
-                                </Row>
-                            </Space>
-                        </Card>
+                                        </Col>
+                                        <Col>
+                                            <Button
+                                                type="primary"
+                                                loading={savingQuiz}
+                                                icon={<SaveOutlined />}
+                                                size="large"
+                                                onClick={(e) => {
+                                                    e.stopPropagation();
+                                                    quizForm.submit();
+                                                    navigate("/");
+                                                }}
+                                            >
+                                                Сохранить и выйти
+                                            </Button>
+                                        </Col>
+                                    </Row>
+                                ),
+                                children: (
+                                    <Form
+                                        form={quizForm}
+                                        layout="vertical"
+                                        onFinish={onQuizUpdate}
+                                        autoComplete="off"
+                                    >
+                                        <Form.Item
+                                            name="title"
+                                            label="Название квиза"
+                                            rules={[
+                                                { required: true, message: 'Введите название квиза!' },
+                                                { max: 200, message: 'Название не должно превышать 200 символов' }
+                                            ]}
+                                        >
+                                            <Input 
+                                                placeholder="Введите название квиза"
+                                                size="large"
+                                            />
+                                        </Form.Item>
+
+                                        {/* Описание */}
+                                        <Form.Item
+                                            name="description"
+                                            label="Описание"
+                                            style={{ marginTop: 16 }}
+                                        >
+                                            <TextArea 
+                                                placeholder="Введите описание квиза (необязательно)"
+                                                rows={3}
+                                                showCount
+                                                maxLength={1000}
+                                            />
+                                        </Form.Item>
+
+                                        {/* Лимит времени */}
+                                        <Form.Item label="Лимит времени" style={{ marginBottom: 16 }}>
+                                            <Space direction="vertical" style={{ width: '100%' }}>
+                                                <Switch
+                                                    checked={hasTimeLimit}
+                                                    onChange={setHasTimeLimit}
+                                                    checkedChildren={<ClockCircleOutlined />}
+                                                    unCheckedChildren="Без времени"
+                                                />
+                                                <Text type="secondary" style={{ fontSize: '12px' }}>
+                                                    {hasTimeLimit 
+                                                        ? 'Установите лимит времени для прохождения квиза'
+                                                        : 'Квиз можно проходить без ограничения по времени'
+                                                    }
+                                                </Text>
+                                                
+                                                {hasTimeLimit && (
+                                                    <Form.Item
+                                                        name="timeLimit"
+                                                        rules={[
+                                                            { required: true, message: 'Выберите лимит времени!' }
+                                                        ]}
+                                                        style={{ marginBottom: 0 }}
+                                                    >
+                                                        <TimePicker
+                                                            format="HH:mm:ss"
+                                                            placeholder="Выберите время"
+                                                            style={{ width: '100%' }}
+                                                            size="large"
+                                                            showNow={false}
+                                                        />
+                                                    </Form.Item>
+                                                )}
+                                            </Space>
+                                        </Form.Item>
+
+                                        {/* Режим доступа */}
+                                        <Form.Item
+                                            name="accessMode"
+                                            label="Режим доступа"
+                                            rules={[
+                                                { required: true, message: 'Выберите режим доступа!' }
+                                            ]}
+                                        >
+                                            <Radio.Group>
+                                                <Space direction="vertical">
+                                                    <Radio value="public">
+                                                        <Space>
+                                                            <GlobalOutlined />
+                                                            <Text>Публичный</Text>
+                                                        </Space>
+                                                        <br />
+                                                        <Text type="secondary" style={{ fontSize: '12px', marginLeft: 24 }}>
+                                                            Квиз будет доступен всем пользователям
+                                                        </Text>
+                                                    </Radio>
+                                                    <Radio value="private">
+                                                        <Space>
+                                                            <LockOutlined />
+                                                            <Text>Приватный</Text>
+                                                        </Space>
+                                                        <br />
+                                                        <Text type="secondary" style={{ fontSize: '12px', marginLeft: 24 }}>
+                                                            Квиз будет доступен только по коду доступа
+                                                        </Text>
+                                                    </Radio>
+                                                </Space>
+                                            </Radio.Group>
+                                        </Form.Item>
+
+                                        {/* Категория (скрытое поле, если нужно) */}
+                                        <Form.Item
+                                            name="category"
+                                            hidden
+                                        >
+                                            <Input type="number" />
+                                        </Form.Item>
+                                    </Form>
+                                )
+                            }]
+                        } />
 
                         <Row gutter={[24, 24]}>
                             {/* Форма создания вопроса */}
                             <Col xs={24} lg={14}>
                                 <Card>
-                                    <Space direction="vertical" size="large" style={{ width: '100%' }}>
+                                    <Space direction="vertical" size="small" style={{ width: '100%' }}>
                                         <div>
-                                            <Title level={4}>
-                                                <QuestionCircleOutlined /> Создать новый вопрос
+                                            <Title level={4} style={{margin: 0}}>
+                                                Создать новый вопрос
                                             </Title>
                                             <Text type="secondary">
                                                 Заполните форму для добавления вопроса в квиз
@@ -326,13 +519,13 @@ export default function CreateQuestions() {
                             {/* Список существующих вопросов */}
                             <Col xs={24} lg={10}>
                                 <Card>
-                                    <Space direction="vertical" size="large" style={{ width: '100%' }}>
+                                    <Space direction="vertical" size="small" style={{ width: '100%' }}>
                                         <div>
                                             <Title level={4} style={{ margin: 0 }}>
                                                 Вопросы квиза
                                             </Title>
                                             <Text type="secondary">
-                                                {questions.length} {questions.length === 1 ? 'вопрос' : questions.length < 5 ? 'вопроса' : 'вопросов'}
+                                                вопросов: {questions.length}
                                             </Text>
                                         </div>
 

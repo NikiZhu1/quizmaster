@@ -86,9 +86,9 @@ export default function CreateQuiz() {
             
             <Content style={{ padding: '24px', maxWidth: '800px', margin: '0 auto', width: '100%' }}>
                 <Card>
-                    <Space direction="vertical" size="large" style={{ width: '100%' }}>
+                    <Space direction="vertical" size="small" style={{ width: '100%' }}>
                         <div>
-                            <Title level={2}>Создание нового квиза</Title>
+                            <Title level={2} style={{margin: 0}}>Создание нового квиза</Title>
                             <Text type="secondary">
                                 Заполните форму ниже, чтобы создать новый квиз
                             </Text>
