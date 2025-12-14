@@ -154,8 +154,7 @@ const HeaderComponent = () => {
     <Header style={HeaderStyle}>
       <Flex justify='space-between' align='center' style={{ width: '100%', height: '100%' }}>
         <Space size="small" style={{ flex: 1 }}>
-          {isAuthenticated && (
-            <Space size="small">
+          <Space size="small">
               <Button
                 type="text"
                 icon={<HomeOutlined />}
@@ -164,24 +163,23 @@ const HeaderComponent = () => {
               >
                 Главная
               </Button>
-              <Button
+              {isAuthenticated && (<Button
                 type="text"
                 icon={<FileTextOutlined />}
                 style={getTabStyle('myquizzes')}
                 onClick={() => handleTabClick('myquizzes')}
               >
                 Мои квизы
-              </Button>
-              <Button
+              </Button>)}
+              {isAuthenticated && (<Button
                 type="text"
                 icon={<TrophyOutlined />}
                 style={getTabStyle('completedquizzes')}
                 onClick={() => handleTabClick('completedquizzes')}
               >
                 Пройденные квизы
-              </Button>
+              </Button>)}
             </Space>
-          )}
         </Space>
         
         {isAuthenticated ? (

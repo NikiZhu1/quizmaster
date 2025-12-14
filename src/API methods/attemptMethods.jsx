@@ -304,7 +304,7 @@ export const getAttemptAnswers = async (attemptId, attemptData = null) => {
  * Получает все попытки пользователя
  * @returns {Promise<Array>} - Массив попыток пользователя
  */
-export const getUserAttempts = async () => {
+export const getUserAttempts = async (userId) => {
   const token = Cookies.get('token');
   
   if (!token) {
@@ -312,7 +312,7 @@ export const getUserAttempts = async () => {
   }
 
   try {
-    const response = await apiClient.get('/Attempt/user', {
+    const response = await apiClient.get(`/User/${userId}/attempts`, {
       headers: {
         'Authorization': `Bearer ${token}`
       }

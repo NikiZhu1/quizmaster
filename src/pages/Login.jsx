@@ -24,7 +24,7 @@ function Login() {
             let username = 'Пользователь';
             
             if (userId) {
-                const userInfo = await getUserInfo(token, userId);
+                const userInfo = await getUserInfo(userId);
                 username = userInfo?.username || userInfo?.name || 'Пользователь';
             }
             

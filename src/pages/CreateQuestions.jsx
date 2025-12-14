@@ -3,20 +3,19 @@ import { useParams, useNavigate } from 'react-router-dom';
 import {
     Layout, Card, Form, Input, Radio, Button, Space, Typography,
     Checkbox, message, Row, Col, Divider, List, Empty, Popconfirm,
-    TimePicker, Switch, Collapse
+    TimePicker, Switch, Collapse, Modal
 } from 'antd';
 import {
     PlusOutlined, DeleteOutlined, SaveOutlined, QuestionCircleOutlined,
     CheckCircleOutlined, ArrowLeftOutlined, CheckOutlined,
     ClockCircleOutlined, LockOutlined, GlobalOutlined, EditOutlined,
-    CaretRightFilled
+    CaretRightFilled, ArrowUpOutlined, ArrowDownOutlined
 } from '@ant-design/icons';
 import Cookies from 'js-cookie';
 import dayjs from 'dayjs';
 import HeaderComponent from '../components/HeaderComponent';
-import { createQuestion } from '../API methods/questionMethods';
-import { getQuizById, updateQuiz } from '../API methods/quizMethods';
-import { getQuizQuestions } from '../API methods/quizMethods';
+import { createQuestion, updateQuestion, updateOption, getQuestionById, createOption, deleteOption, deleteQuestion } from '../API methods/questionMethods';
+import { useQuizes } from '../hooks/useQuizes';
 import '../App.css';
 
 const { Content } = Layout;
@@ -24,17 +23,26 @@ const { Title, Text, Paragraph } = Typography;
 const { TextArea } = Input;
 
 export default function CreateQuestions() {
+    const {getQuizById, updateQuiz, getQuizQuestions} = useQuizes();
     const { quizId } = useParams();
     const navigate = useNavigate();
     const [form] = Form.useForm();
     const [quizForm] = Form.useForm();
     const [loading, setLoading] = useState(false);
     const [quiz, setQuiz] = useState(null);
+
     const [questions, setQuestions] = useState([]);
     const [loadingQuiz, setLoadingQuiz] = useState(true);
     const [questionType, setQuestionType] = useState(0); // 0 - один вариант, 1 - несколько
     const [hasTimeLimit, setHasTimeLimit] = useState(false);
     const [savingQuiz, setSavingQuiz] = useState(false);
+    
+    // Состояния для редактирования вопроса
+    const [editModalVisible, setEditModalVisible] = useState(false);
+    const [editingQuestion, setEditingQuestion] = useState(null);
+    const [editForm] = Form.useForm();
+    const [editQuestionType, setEditQuestionType] = useState(0);
+    const [loadingEdit, setLoadingEdit] = useState(false);
 
     useEffect(() => {
         loadQuizData();
@@ -104,12 +112,13 @@ export default function CreateQuestions() {
             };
 
             // Отправляем запрос на обновление квиза
-            await updateQuiz(token, quizId, quizData);
+            const responce = await updateQuiz(token, quizId, quizData);
 
-            message.success('Информация о квизе успешно обновлена!');
+            if (responce.status === 200) {
+                message.success('Информация о квизе успешно обновлена!');
+                await loadQuizData();
+            }
             
-            // Обновляем данные квиза
-            await loadQuizData();
         } catch (error) {
             console.error('Ошибка при обновлении квиза:', error);
             
@@ -192,6 +201,182 @@ export default function CreateQuestions() {
         } finally {
             setLoading(false);
         }
+    };
+
+    // Функция для открытия модального окна редактирования
+    const handleEditQuestion = async (questionId) => {
+        try {
+            setLoadingEdit(true);
+            const questionData = await getQuestionById(questionId);
+            setEditingQuestion(questionData);
+            setEditQuestionType(questionData.type);
+            
+            // Заполняем форму данными вопроса
+            editForm.setFieldsValue({
+                text: questionData.text,
+                options: questionData.options.map(option => ({
+                    text: option.text,
+                    isCorrect: option.isCorrect || false
+                }))
+            });
+            
+            setEditModalVisible(true);
+        } catch (error) {
+            console.error('Ошибка при загрузке вопроса:', error);
+            message.error('Не удалось загрузить данные вопроса');
+        } finally {
+            setLoadingEdit(false);
+        }
+    };
+
+    // Функция для сохранения изменений вопроса
+    const handleSaveEdit = async () => {
+        try {
+            const values = await editForm.validateFields();
+            const token = Cookies.get('token');
+
+            if (!token) {
+                message.error('Требуется авторизация');
+                navigate('/login');
+                return;
+            }
+
+            setLoadingEdit(true);
+
+            // Проверяем минимальное количество опций
+            if (!values.options || values.options.length < 2) {
+                message.error('Вопрос должен содержать минимум 2 варианта ответа!');
+                setLoadingEdit(false);
+                return;
+            }
+
+            // Проверяем, что есть хотя бы один правильный ответ
+            const correctOptions = values.options.filter(opt => opt.isCorrect);
+            if (correctOptions.length === 0) {
+                message.error('Выберите хотя бы один правильный ответ!');
+                setLoadingEdit(false);
+                return;
+            }
+
+            // Для одиночного выбора (type 0) должен быть только один правильный ответ
+            if (editQuestionType === 0 && correctOptions.length > 1) {
+                message.error('Для вопроса с одним вариантом ответа выберите только один правильный ответ!');
+                setLoadingEdit(false);
+                return;
+            }
+
+            // Обновляем вопрос
+            await updateQuestion(editingQuestion.id, {
+                text: values.text,
+                type: editQuestionType
+            }, token);
+
+            // Обрабатываем опции
+            const existingOptions = editingQuestion.options || [];
+            const newOptions = values.options || [];
+            
+            // Обновляем существующие опции
+            for (let i = 0; i < Math.min(existingOptions.length, newOptions.length); i++) {
+                const option = newOptions[i];
+                const existingOption = existingOptions[i];
+                
+                if (existingOption && existingOption.id) {
+                    await updateOption(existingOption.id, {
+                        text: option.text,
+                        isCorrect: option.isCorrect || false
+                    }, token);
+                }
+            }
+            
+            // Удаляем лишние опции (если новых опций меньше, чем было)
+            if (newOptions.length < existingOptions.length) {
+                for (let i = newOptions.length; i < existingOptions.length; i++) {
+                    if (existingOptions[i] && existingOptions[i].id) {
+                        await deleteOption(existingOptions[i].id, token);
+                    }
+                }
+            }
+            
+            // Создаем новые опции (если новых опций больше, чем было)
+            if (newOptions.length > existingOptions.length) {
+                for (let i = existingOptions.length; i < newOptions.length; i++) {
+                    const option = newOptions[i];
+                    await createOption(editingQuestion.id, {
+                        text: option.text,
+                        isCorrect: option.isCorrect || false
+                    }, token);
+                }
+            }
+
+            message.success('Вопрос успешно обновлен!');
+            setEditModalVisible(false);
+            setEditingQuestion(null);
+            editForm.resetFields();
+            
+            // Обновляем список вопросов
+            await loadQuizData();
+        } catch (error) {
+            console.error('Ошибка при обновлении вопроса:', error);
+            
+            if (error.response?.status === 401) {
+                message.error('Ошибка авторизации. Пожалуйста, войдите снова.');
+                navigate('/login');
+            } else if (error.response?.status === 400) {
+                message.error(error.response.data?.message || error.message || 'Неверные данные для обновления вопроса');
+            } else {
+                message.error(error.message || 'Ошибка при обновлении вопроса. Попробуйте еще раз.');
+            }
+        } finally {
+            setLoadingEdit(false);
+        }
+    };
+
+    // Функция для удаления вопроса
+    const handleDeleteQuestion = async (questionId) => {
+        try {
+            const token = Cookies.get('token');
+            
+            if (!token) {
+                message.error('Требуется авторизация');
+                navigate('/login');
+                return;
+            }
+
+            await deleteQuestion(questionId, token);
+            message.success('Вопрос успешно удален!');
+            
+            // Обновляем список вопросов
+            await loadQuizData();
+        } catch (error) {
+            console.error('Ошибка при удалении вопроса:', error);
+            
+            if (error.response?.status === 401) {
+                message.error('Ошибка авторизации. Пожалуйста, войдите снова.');
+                navigate('/login');
+            } else if (error.response?.status === 403) {
+                message.error('У вас нет прав на удаление этого вопроса');
+            } else {
+                message.error(error.message || 'Ошибка при удалении вопроса. Попробуйте еще раз.');
+            }
+        }
+    };
+
+    // Функция для перемещения вопроса вверх
+    const handleMoveQuestionUp = (index) => {
+        if (index === 0) return; // Уже первый
+        
+        const newQuestions = [...questions];
+        [newQuestions[index - 1], newQuestions[index]] = [newQuestions[index], newQuestions[index - 1]];
+        setQuestions(newQuestions);
+    };
+
+    // Функция для перемещения вопроса вниз
+    const handleMoveQuestionDown = (index) => {
+        if (index === questions.length - 1) return; // Уже последний
+        
+        const newQuestions = [...questions];
+        [newQuestions[index], newQuestions[index + 1]] = [newQuestions[index + 1], newQuestions[index]];
+        setQuestions(newQuestions);
     };
 
     return (
@@ -547,9 +732,37 @@ export default function CreateQuestions() {
                                                             title={
                                                                 <Space>
                                                                     <Text strong>Вопрос {index + 1}</Text>
-                                                                    <Text type="secondary" style={{ fontSize: '12px' }}>
+                                                                    {/* <Text type="secondary" style={{ fontSize: '12px' }}>
                                                                         ({question.type === 0 ? 'Один вариант' : 'Несколько вариантов'})
-                                                                    </Text>
+                                                                    </Text> */}
+                                                                </Space>
+                                                            }
+                                                            extra={
+                                                                <Space>
+                                                                    <Button
+                                                                        type="default"
+                                                                        icon={<EditOutlined />}
+                                                                        size="middle"
+                                                                        onClick={() => handleEditQuestion(question.id)}
+                                                                    >
+                                                                        Редактировать
+                                                                    </Button>
+                                                                    <Popconfirm
+                                                                        title="Удалить вопрос"
+                                                                        description="Вы уверены, что хотите удалить этот вопрос?"
+                                                                        onConfirm={() => handleDeleteQuestion(question.id)}
+                                                                        okText="Да"
+                                                                        cancelText="Нет"
+                                                                        okButtonProps={{ danger: true }}
+                                                                    >
+                                                                        <Button
+                                                                            type="primary"
+                                                                            danger
+                                                                            icon={<DeleteOutlined />}
+                                                                            size="middle"
+                                                                        >
+                                                                        </Button>
+                                                                    </Popconfirm>
                                                                 </Space>
                                                             }
                                                         >
@@ -580,6 +793,146 @@ export default function CreateQuestions() {
                                 </Card>
                             </Col>
                         </Row>
+
+                        {/* Модальное окно редактирования вопроса */}
+                        <Modal
+                            title="Редактировать вопрос"
+                            open={editModalVisible}
+                            onCancel={() => {
+                                setEditModalVisible(false);
+                                setEditingQuestion(null);
+                                editForm.resetFields();
+                            }}
+                            onOk={handleSaveEdit}
+                            confirmLoading={loadingEdit}
+                            width={800}
+                            okText="Сохранить"
+                            cancelText="Отмена"
+                        >
+                            {editingQuestion && (
+                                <Form
+                                    form={editForm}
+                                    layout="vertical"
+                                    autoComplete="off"
+                                >
+                                    {/* Текст вопроса */}
+                                    <Form.Item
+                                        name="text"
+                                        label="Текст вопроса"
+                                        rules={[
+                                            { required: true, message: 'Введите текст вопроса!' },
+                                            { max: 500, message: 'Текст не должен превышать 500 символов' }
+                                        ]}
+                                    >
+                                        <TextArea
+                                            placeholder="Введите текст вопроса"
+                                            rows={3}
+                                            showCount
+                                            maxLength={500}
+                                        />
+                                    </Form.Item>
+
+                                    {/* Тип вопроса */}
+                                    <Form.Item
+                                        label="Тип вопроса"
+                                    >
+                                        <Radio.Group
+                                            value={editQuestionType}
+                                            onChange={(e) => {
+                                                setEditQuestionType(e.target.value);
+                                                // Сбрасываем выбор правильных ответов при смене типа
+                                                const options = editForm.getFieldValue('options') || [];
+                                                editForm.setFieldsValue({
+                                                    options: options.map(opt => ({ ...opt, isCorrect: false }))
+                                                });
+                                            }}
+                                        >
+                                            <Radio value={0}>
+                                                <Space>
+                                                    <CheckCircleOutlined />
+                                                    <Text>Один вариант ответа</Text>
+                                                </Space>
+                                            </Radio>
+                                            <Radio value={1}>
+                                                <Space>
+                                                    <CheckOutlined />
+                                                    <Text>Несколько верных вариантов</Text>
+                                                </Space>
+                                            </Radio>
+                                        </Radio.Group>
+                                    </Form.Item>
+
+                                    {/* Варианты ответа */}
+                                    <Form.Item
+                                        label="Варианты ответа"
+                                        required
+                                    >
+                                        <Form.List name="options">
+                                            {(fields, { add, remove }) => (
+                                                <>
+                                                    {fields.map(({ key, name, ...restField }) => (
+                                                        <Card
+                                                            key={key}
+                                                            size="small"
+                                                            style={{ marginBottom: 8 }}
+                                                            extra={
+                                                                fields.length > 2 && (
+                                                                    <Button
+                                                                        type="text"
+                                                                        danger
+                                                                        icon={<DeleteOutlined />}
+                                                                        onClick={() => remove(name)}
+                                                                        size="small"
+                                                                    />
+                                                                )
+                                                            }
+                                                        >
+                                                            <Row gutter={8} align="middle">
+                                                                <Col flex="auto">
+                                                                    <Form.Item
+                                                                        {...restField}
+                                                                        name={[name, 'text']}
+                                                                        rules={[
+                                                                            { required: true, message: 'Введите вариант ответа!' }
+                                                                        ]}
+                                                                        style={{ marginBottom: 0 }}
+                                                                    >
+                                                                        <Input
+                                                                            placeholder={`Вариант ответа ${name + 1}`}
+                                                                        />
+                                                                    </Form.Item>
+                                                                </Col>
+                                                                <Col>
+                                                                    <Form.Item
+                                                                        {...restField}
+                                                                        name={[name, 'isCorrect']}
+                                                                        valuePropName="checked"
+                                                                        style={{ marginBottom: 0 }}
+                                                                    >
+                                                                        <Checkbox>
+                                                                            {editQuestionType === 0 ? 'Правильный' : 'Верный'}
+                                                                        </Checkbox>
+                                                                    </Form.Item>
+                                                                </Col>
+                                                            </Row>
+                                                        </Card>
+                                                    ))}
+                                                    <Button
+                                                        type="dashed"
+                                                        onClick={() => add()}
+                                                        block
+                                                        icon={<PlusOutlined />}
+                                                        style={{ marginTop: 8 }}
+                                                    >
+                                                        Добавить вариант ответа
+                                                    </Button>
+                                                </>
+                                            )}
+                                        </Form.List>
+                                    </Form.Item>
+                                </Form>
+                            )}
+                        </Modal>
                     </>
                 )}
             </Content>

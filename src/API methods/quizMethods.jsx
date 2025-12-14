@@ -21,6 +21,7 @@ export const getAllQuizzes = async () => {
 
 /**
  * Создает новый квиз
+ * @param {Object} token - Токен авторизации
  * @param {Object} quizData - Данные для создания квиза
  * @param {string} quizData.title - Название квиза
  * @param {string} quizData.description - Описание квиза
@@ -30,6 +31,9 @@ export const getAllQuizzes = async () => {
  * @returns {Promise<Object>} - Созданный квиз
  */
 export const createQuiz = async (token, quizData) => {
+  if (!token) {
+    throw new Error('Токен авторизации обязателен');
+  }
   // Валидация данных
   if (!quizData.title || quizData.title.trim() === '') {
     throw new Error('Название квиза обязательно');
@@ -53,6 +57,7 @@ export const createQuiz = async (token, quizData) => {
 
     console.log('Квиз успешно создан:', response.data);
     return response.data;
+
   } catch (error) {
     console.error('Ошибка при создании квиза:', error);
     
@@ -83,11 +88,13 @@ export const getQuizById = async (id) => {
     const response = await apiClient.get(`/Quiz/${id}`);
     console.log(`Получен квиз с ID ${id}:`, response.data);
     return response.data;
+
   } catch (error) {
     if (error.response?.status === 404) {
       console.warn(`Квиз с ID ${id} не найден`);
       throw new Error(`Квиз с ID ${id} не найден`);
     }
+
     console.error(`Ошибка при получении квиза ${id}:`, error);
     throw error;
   }
@@ -95,10 +102,14 @@ export const getQuizById = async (id) => {
 
 /**
  * Удаляет квиз по ID
+ * @param {Object} token - Токен авторизации
  * @param {number} id - ID квиза для удаления
- * @returns {Promise<string>} - Сообщение об успешном удалении
+ * @returns {Promise<string>} Сообщение об успешном удалении
  */
 export const deleteQuiz = async (token, id) => {
+  if (!token) {
+    throw new Error('Токен авторизации обязателен');
+  }
   if (!id || id <= 0) {
     throw new Error('Неверный ID квиза для удаления');
   }
@@ -112,6 +123,7 @@ export const deleteQuiz = async (token, id) => {
 
     console.log(`Квиз с ID ${id} успешно удален`);
     return response.data || 'Квиз успешно удален';
+
   } catch (error) {
     console.error(`Ошибка при удалении квиза ${id}:`, error);
     
@@ -133,6 +145,7 @@ export const deleteQuiz = async (token, id) => {
 
 /**
  * Обновляет существующий квиз
+ * @param {Object} token - Токен авторизации
  * @param {number} id - ID квиза
  * @param {Object} updates - Обновления для квиза
  * @returns {Promise<string>} - Сообщение об успешном обновлении
@@ -148,7 +161,8 @@ export const updateQuiz = async (token, id, updates) => {
     });
 
     console.log(`Квиз с ID ${id} успешно обновлен`);
-    return response.data || 'Квиз успешно обновлен';
+    return response;
+
   } catch (error) {
     console.error(`Ошибка при обновлении квиза ${id}:`, error);
     
@@ -163,11 +177,6 @@ export const updateQuiz = async (token, id, updates) => {
     throw error;
   }
 };
-
-
-
-
-// Добавьте эти функции в существующий файл quizMethods.jsx
 
 /**
  * Получает вопросы для квиза
@@ -201,109 +210,6 @@ export const connectToQuizByCode = async (code) => {
     return response.data;
   } catch (error) {
     console.error(`Ошибка при подключении к квизу по коду ${code}:`, error);
-    throw error;
-  }
-};
-
-
-
-
-/**
- * Получает вопросы для квиза с детальной информацией
- */
-export const getQuizQuestionsDetailed = async (quizId, accessKey = null) => {
-  try {
-    const params = {};
-    if (accessKey) {
-      params.accessKey = accessKey;
-    }
-    
-    const response = await apiClient.get(`/quiz/${quizId}/questions`, { params });
-    
-    // Проверяем структуру ответа
-    console.log('Структура вопросов:', response.data);
-    
-    // Если опции не имеют ID, добавляем их
-    const questions = response.data.map(question => ({
-      ...question,
-      options: question.options?.map((option, index) => ({
-        ...option,
-        id: option.id || `temp_${question.id}_${index}` // Временный ID если нет
-      })) || []
-    }));
-    
-    return questions;
-  } catch (error) {
-    console.error(`Ошибка при получении вопросов квиза ${quizId}:`, error);
-    throw error;
-  }
-};
-
-/**
- * Получает квизы пользователя
- * @param {string} token - Токен авторизации
- * @returns {Promise<Array>} - Массив квизов пользователя
- */
-export const getUserQuizzes = async (token) => {
-  if (!token) {
-    throw new Error('Токен авторизации обязателен');
-  }
-
-  try {
-    // Пробуем несколько вариантов эндпоинтов
-    const endpoints = ['/Quiz/user', '/Quiz/my', '/Quiz/byUser'];
-    let lastError = null;
-
-    for (const endpoint of endpoints) {
-      try {
-        const response = await apiClient.get(endpoint, {
-          headers: {
-            'Authorization': `Bearer ${token}`
-          }
-        });
-        console.log(`Успешно получены квизы через ${endpoint}:`, response.data);
-        return response.data;
-      } catch (err) {
-        lastError = err;
-        console.log(`Эндпоинт ${endpoint} не сработал:`, err.response?.status, err.response?.data);
-        // Если это не 400 или 404, прекращаем попытки
-        if (err.response?.status !== 400 && err.response?.status !== 404) {
-          throw err;
-        }
-      }
-    }
-
-    // Если все эндпоинты вернули ошибку, пробуем получить userId и использовать его
-    if (lastError?.response?.status === 400) {
-      try {
-        const userId = GetUserIdFromJWT(token);
-        
-        if (userId) {
-          console.log(`Пробуем получить квизы через userId: ${userId}`);
-          // Пробуем получить все квизы и отфильтровать на клиенте
-          const allQuizzes = await getAllQuizzes();
-          // Фильтруем квизы по userId (предполагая, что в объекте квиза есть поле creatorId или userId)
-          const userQuizzes = allQuizzes.filter(quiz => 
-            quiz.userId === userId || 
-            quiz.creatorId === userId || 
-            quiz.authorId === userId
-          );
-          console.log('Отфильтрованные квизы пользователя:', userQuizzes);
-          return userQuizzes;
-        }
-      } catch (filterError) {
-        console.error('Ошибка при фильтрации квизов:', filterError);
-      }
-    }
-
-    // Если ничего не помогло, выбрасываем последнюю ошибку
-    console.error('Ошибка при получении квизов пользователя:', lastError);
-    if (lastError.response?.data) {
-      console.error('Данные ошибки от сервера:', lastError.response.data);
-    }
-    throw lastError;
-  } catch (error) {
-    console.error('Ошибка при получении квизов пользователя:', error);
     throw error;
   }
 };

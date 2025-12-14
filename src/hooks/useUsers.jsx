@@ -10,56 +10,56 @@ export const useUsers = () => {
 
     // Функция авторизации
     const loginUser = async (values) => {
-    setLoading(true);
-    setError(null);
-    try {
-        const token = await api.AuthenticateUser(values, false);
+        setLoading(true);
+        setError(null);
 
-        // Сохраняем токен в cookies
-        setTokenToCookie(token);
-        
-        console.log('Вход: ', values);
-    }
-    catch (error) {
-        console.error(`Ошибка входа: `, error);
-        throw error;
-    }
-    finally {
-        setLoading(false);
-    }
-}
+        try {
+            const token = await api.AuthenticateUser(values, false);
 
-    // Функция регистрации
+            // Сохраняем токен в cookies
+            setTokenToCookie(token);
+            console.log('Вход: ', values);
+        }
+        catch (error) {
+            console.error(`Ошибка входа: `, error);
+            throw error;
+        }
+        finally {
+            setLoading(false);
+        }
+    }
+
+    /** Функция регистрации */ 
     const registerUser = async (values) => {
-    setLoading(true);
-    setError(null);
-    try {
-        const token = await api.AuthenticateUser(values, true);
+        setLoading(true);
+        setError(null);
 
-        // Сохраняем токен в cookies
-        setTokenToCookie(token);
+        try {
+            const token = await api.AuthenticateUser(values, true);
 
-        console.log('Регистрация: ', values);
+            // Сохраняем токен в cookies
+            setTokenToCookie(token);
+            console.log('Регистрация: ', values);
+        }
+        catch (error) {
+            console.error(`Ошибка регистрации: `, error);
+            throw error;
+        }
+        finally {
+            setLoading(false);
+        }
     }
-    catch (error) {
-        console.error(`Ошибка регистрации: `, error);
-        throw error;
-    }
-    finally {
-        setLoading(false);
-    }
-}
 
     const setTokenToCookie = (token) => {
         Cookies.set('token', token, { expires: 1, secure: true, sameSite: 'Strict' });
-}
+    }
 
     // Функция выхода
     const logoutUser = () => {
         Cookies.remove('token');
     };
 
-    // Получение информации о текущем пользователе
+    // Получение информации о пользователе
     const getUserInfo = async (userId) => {
         if (!userId) return null;
 
@@ -85,6 +85,21 @@ export const useUsers = () => {
         }
     }
 
+    const getUserQuizzes = async (token, userId) => {
+        setLoading(true);
+        setError(null);
+        
+        try {
+            const quizzesData = await api.getUserQuizzes(token, userId);
+            return quizzesData;
+
+        } catch (err) {
+            setError(err);
+        } finally {
+            setLoading(false);
+        }
+    };
+
     return {
         loading,
         error,
@@ -92,6 +107,7 @@ export const useUsers = () => {
         registerUser,
         logoutUser,
         getUserInfo,
-        GetUserIdFromJWT
+        GetUserIdFromJWT,
+        getUserQuizzes
     };
 };

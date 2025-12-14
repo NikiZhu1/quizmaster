@@ -9,11 +9,12 @@ import MyQuizCard from '../components/MyQuizCard';
 import HeaderComponent from '../components/HeaderComponent';
 
 //Методы
-import * as quizApi from '../API methods/quizMethods.jsx';
+import { useUsers } from '../hooks/useUsers.jsx';
 
 const { Title } = Typography;
 
 export default function MyQuizzes() {
+    const {GetUserIdFromJWT, getUserQuizzes} = useUsers();
     const [quizzes, setQuizzes] = useState([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
@@ -33,7 +34,8 @@ export default function MyQuizzes() {
                 navigate('/login');
                 return;
             }
-            const quizzesData = await quizApi.getUserQuizzes(token);
+            const userId = GetUserIdFromJWT(token);
+            const quizzesData = await getUserQuizzes(token, userId);
             setQuizzes(quizzesData || []);
         } catch (err) {
             console.error("Ошибка при загрузке квизов:", err);

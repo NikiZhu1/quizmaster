@@ -53,6 +53,35 @@ export const getUserInfo = async (userId) => {
     }
 };
 
+/**
+ * Получает квизы пользователя
+ * @param {string} token - Токен авторизации
+ * @param {string} userId - ID пользователя
+ * @returns {Promise<Array>} Массив квизов пользователя
+ */
+export const getUserQuizzes = async (token, userId) => {
+    if (!token) {
+      throw new Error('Токен авторизации обязателен');
+    }
+    if (!userId) {
+      throw new Error('Id пользователя обязателен');
+    }
+  
+    try {
+      const response = await apiClient.get(`/User/${userId}/quizzes`, {
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      });
+  
+      console.log(`Успешно получены квизы ${userId}:`, response.data);
+      return response.data;
+    } catch (err) {
+      console.error('Ошибка при получении квизов пользователя:', err);
+      throw err;
+    }
+  };
+
 export const updateUserProfile = async (userId, userData) => {
     const token = Cookies.get('token');
     

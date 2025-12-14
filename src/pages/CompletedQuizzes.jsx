@@ -12,10 +12,12 @@ import {
 import * as api from '../API methods/attemptMethods.jsx';
 import * as quizApi from '../API methods/quizMethods.jsx';
 import HeaderComponent from '../components/HeaderComponent';
+import { useUsers } from '../hooks/useUsers.jsx';
 
 const { Title, Text } = Typography;
 
 export default function CompletedQuizzes() {
+    const {GetUserIdFromJWT} = useUsers();
     const [attempts, setAttempts] = useState([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
@@ -35,7 +37,8 @@ export default function CompletedQuizzes() {
                 navigate('/login');
                 return;
             }
-            const attemptsData = await api.getUserAttempts();
+            const userId = GetUserIdFromJWT(token);
+            const attemptsData = await api.getUserAttempts(userId);
             
             // Загружаем дополнительную информацию о квизах для каждой попытки
             const attemptsWithQuizInfo = await Promise.all(
