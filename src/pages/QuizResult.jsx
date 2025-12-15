@@ -14,6 +14,7 @@ import {
 } from '@ant-design/icons';
 import * as api from '../API methods/attemptMethods.jsx';
 import * as quizApi from '../API methods/quizMethods.jsx';
+import * as questionApi from '../API methods/questionMethods.jsx';
 import HeaderComponent from '../components/HeaderComponent.jsx';
 
 const { Title, Text, Paragraph } = Typography;
@@ -26,6 +27,7 @@ export default function QuizResult() {
     const [quizInfo, setQuizInfo] = useState(null);
     const [answers, setAnswers] = useState([]);
     const [questions, setQuestions] = useState([]);
+    const [questionsWithOptions, setQuestionsWithOptions] = useState([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
 
@@ -63,9 +65,30 @@ export default function QuizResult() {
                         const quizData = await quizApi.getQuizById(attemptData.quizId);
                         setQuizInfo(quizData);
                         
+                        // 4. Загружаем вопросы квиза (без правильных ответов)
                         const questionsData = await quizApi.getQuizQuestions(attemptData.quizId);
                         setQuestions(questionsData);
                         console.log('Загружены вопросы:', questionsData);
+                        
+                        // 5. Для каждого вопроса загружаем полную информацию с IsCorrect
+                        const questionsWithFullData = await Promise.all(
+                            questionsData.map(async (question) => {
+                                try {
+                                    const fullQuestion = await questionApi.getQuestionById(question.id);
+                                    return {
+                                        ...question,
+                                        options: fullQuestion.options || [],
+                                        type: fullQuestion.type || 0
+                                    };
+                                } catch (error) {
+                                    console.error(`Ошибка загрузки вопроса ${question.id}:`, error);
+                                    return question;
+                                }
+                            })
+                        );
+                        
+                        setQuestionsWithOptions(questionsWithFullData);
+                        console.log('Вопросы с полными данными:', questionsWithFullData);
                         
                     } catch (quizError) {
                         console.error('Ошибка загрузки информации о квизе:', quizError);
@@ -165,12 +188,18 @@ export default function QuizResult() {
 
     // Объединяем вопросы с ответами
     const questionsWithAnswers = useMemo(() => {
-        return questions.map((question, index) => {
+        return questionsWithOptions.map((question, index) => {
             const group = groupedAnswers[question.id];
             const answersForQuestion = group?.answers || [];
             
             // Получаем все выбранные варианты для этого вопроса
             const userSelectedIds = answersForQuestion.map(a => a.chosenOptionId);
+            
+            // Получаем ВСЕ правильные варианты из вопроса
+            const allCorrectOptionIds = question.options
+                ?.filter(opt => opt.isCorrect === true)
+                .map(opt => parseInt(opt.id))
+                .filter(id => !isNaN(id)) || [];
             
             // Считаем выбранные правильные и неправильные варианты
             const correctSelectedCount = answersForQuestion.filter(a => a.isCorrect).length;
@@ -178,16 +207,11 @@ export default function QuizResult() {
             
             const isMultipleChoice = question.type === 1;
             
-            // ВАЖНОЕ ИСПРАВЛЕНИЕ:
-            // Для множественного выбора:
-            // 1. Если есть хотя бы один неправильный выбранный вариант -> ответ НЕПРАВИЛЬНЫЙ
-            // 2. Если все выбранные варианты правильные -> ответ ПРАВИЛЬНЫЙ
-            // (мы предполагаем, что пользователь выбрал все правильные варианты, 
-            // так как бэкенд не предоставляет информацию о том, сколько всего правильных вариантов)
-            
+            // Определяем, правильно ли ответил пользователь на вопрос
             let questionStatus = 'unknown';
             let questionStatusText = 'Неизвестно';
             let statusColor = 'default';
+            let isFullyCorrect = false;
             
             if (!group?.hasAnswer) {
                 questionStatus = 'not-answered';
@@ -198,22 +222,43 @@ export default function QuizResult() {
                 questionStatus = 'incorrect';
                 questionStatusText = 'Неправильно';
                 statusColor = 'error';
-            } else if (correctSelectedCount > 0 && isMultipleChoice) {
-                // Для множественного выбора: все выбранные варианты правильные
-                // ПРЕДПОЛАГАЕМ, что пользователь выбрал ВСЕ правильные варианты
-                questionStatus = 'correct';
-                questionStatusText = 'Правильно';
-                statusColor = 'success';
-            } else if (correctSelectedCount > 0 && !isMultipleChoice) {
-                // Для одиночного выбора: если выбран правильный вариант
-                questionStatus = 'correct';
-                questionStatusText = 'Правильно';
-                statusColor = 'success';
-            } else if (correctSelectedCount === 0 && userSelectedIds.length > 0) {
-                // Если выбраны варианты, но ни один не правильный
-                questionStatus = 'incorrect';
-                questionStatusText = 'Неправильно';
-                statusColor = 'error';
+            } else if (isMultipleChoice) {
+                // Для множественного выбора проверяем, выбраны ли ВСЕ правильные варианты
+                // и нет ли неправильных (incorrectSelectedCount уже проверен выше)
+                
+                // Проверяем, выбраны ли все правильные варианты
+                const allCorrectSelected = allCorrectOptionIds.every(id => 
+                    userSelectedIds.includes(id)
+                );
+                
+                // Проверяем, нет ли лишних вариантов (это невозможно, т.к. incorrectSelectedCount = 0)
+                const noExtraSelections = userSelectedIds.every(id => 
+                    allCorrectOptionIds.includes(id)
+                );
+                
+                if (allCorrectSelected && noExtraSelections) {
+                    questionStatus = 'correct';
+                    questionStatusText = 'Правильно';
+                    statusColor = 'success';
+                    isFullyCorrect = true;
+                } else {
+                    // Даже если все выбранные варианты правильные, но выбраны не все - ответ неправильный
+                    questionStatus = 'incorrect';
+                    questionStatusText = 'Неправильно';
+                    statusColor = 'error';
+                }
+            } else {
+                // Для одиночного выбора
+                if (correctSelectedCount > 0) {
+                    questionStatus = 'correct';
+                    questionStatusText = 'Правильно';
+                    statusColor = 'success';
+                    isFullyCorrect = true;
+                } else if (userSelectedIds.length > 0) {
+                    questionStatus = 'incorrect';
+                    questionStatusText = 'Неправильно';
+                    statusColor = 'error';
+                }
             }
 
             // Создаем карту правильности для каждого выбранного варианта
@@ -227,6 +272,7 @@ export default function QuizResult() {
                 questionNumber: index + 1,
                 userSelectedIds,
                 answersForQuestion,
+                allCorrectOptionIds,
                 correctSelectedCount,
                 incorrectSelectedCount,
                 isMultipleChoice,
@@ -235,22 +281,20 @@ export default function QuizResult() {
                 questionStatus,
                 questionStatusText,
                 statusColor,
-                // Для статистики - считаем ли этот вопрос правильным
-                isCountedAsCorrect: questionStatus === 'correct'
+                isFullyCorrect,
+                totalCorrectOptions: allCorrectOptionIds.length,
+                missingCorrectOptions: allCorrectOptionIds.filter(id => 
+                    !userSelectedIds.includes(id)
+                ).length
             };
         });
-    }, [questions, groupedAnswers]);
+    }, [questionsWithOptions, groupedAnswers]);
 
-    // Рассчитываем общую статистику - ИСПРАВЛЕННАЯ ЛОГИКА
+    // Рассчитываем общую статистику
     const totalQuestions = questionsWithAnswers.length;
-    
-    // Считаем вопросы, которые мы считаем правильными
-    // Для одиночного выбора: если выбран правильный вариант
-    // Для множественного выбора: если все выбранные варианты правильные (нет неправильных)
     const correctAnswersCount = questionsWithAnswers.filter(q => 
         q.questionStatus === 'correct'
     ).length;
-    
     const percentage = totalQuestions > 0 ? (correctAnswersCount / totalQuestions) * 100 : 0;
     const timeSpent = result?.timeSpent ? formatTimeSpan(result.timeSpent) : "00:00:00";
 
@@ -291,6 +335,7 @@ export default function QuizResult() {
         const isUserSelected = userSelectedIds.includes(optionId);
         
         if (!isUserSelected) {
+            // Для невыбранных вариантов - нейтральный статус
             return {
                 status: 'not-selected',
                 label: '',
@@ -409,6 +454,11 @@ export default function QuizResult() {
                                     fontSize: '28px'
                                 }}
                             />
+                            <div style={{ marginTop: 8 }}>
+                                <Text type="secondary" style={{ fontSize: 12 }}>
+                                    {getGradeText(percentage)}
+                                </Text>
+                            </div>
                         </Card>
                     </Col>
                     
@@ -433,6 +483,19 @@ export default function QuizResult() {
                         </Card>
                     </Col>
                 </Row>
+
+                {/* Прогресс-бар */}
+                <Card style={{ marginBottom: 32 }}>
+                    <Space direction="vertical" style={{ width: '100%' }}>
+                        <Text strong>Общий прогресс</Text>
+                        <Progress 
+                            percent={percentage} 
+                            strokeColor={getScoreColor(percentage)}
+                            size="large"
+                            format={() => `${correctAnswersCount}/${totalQuestions} (${percentage.toFixed(1)}%)`}
+                        />
+                    </Space>
+                </Card>
 
                 {/* Информация о квизе */}
                 {quizInfo && (
@@ -463,7 +526,7 @@ export default function QuizResult() {
                 {/* Ответы пользователя */}
                 <Card>
                     <Title level={4}>
-                        <QuestionCircleOutlined /> Детали ответов
+                        <QuestionCircleOutlined /> Ваши ответы
                     </Title>
                     
                     {questionsWithAnswers.length === 0 ? (
@@ -477,7 +540,7 @@ export default function QuizResult() {
                     ) : (
                         <Alert
                             message={`Показаны все ${questionsWithAnswers.length} вопросов`}
-                            description="Зеленым подсвечены правильно выбранные варианты, красным - неправильно выбранные."
+                            description="Все варианты ответов показаны. Ваши выбранные варианты подсвечены зеленым (правильные) или красным (неправильные)."
                             type="info"
                             showIcon
                             style={{ marginBottom: 24 }}
@@ -555,7 +618,7 @@ export default function QuizResult() {
                                             </Paragraph>
                                         </Card>
                                         
-                                        {/* Варианты ответов */}
+                                        {/* Показываем ВСЕ варианты ответов */}
                                         {options && options.length > 0 ? (
                                             <Space direction="vertical" style={{ width: '100%' }} size="middle">
                                                 <Text strong style={{ fontSize: '14px', color: '#595959' }}>
@@ -668,12 +731,12 @@ export default function QuizResult() {
                                             <Col xs={24}>
                                                 <Space direction="vertical" size="small" style={{ width: '100%' }}>
                                                     <Text type="secondary" style={{ fontSize: '12px', fontWeight: '500' }}>
-                                                        Ваши варианты:
+                                                        Ваш результат:
                                                     </Text>
+                                                    
                                                     {userSelectedIds.length > 0 ? (
                                                         <Space wrap>
                                                             {answersForQuestion.map((answer, index) => {
-                                                                const option = options?.find(opt => parseInt(opt.id) === answer.chosenOptionId);
                                                                 const isCorrect = answer.isCorrect;
                                                                 
                                                                 return (
@@ -682,8 +745,7 @@ export default function QuizResult() {
                                                                         color={isCorrect ? "success" : "error"}
                                                                         style={{ fontSize: '12px', fontWeight: '500' }}
                                                                     >
-                                                                        {option?.text || `Вариант ID: ${answer.chosenOptionId}`}
-                                                                        {isCorrect ? ' ✓' : ' ✗'}
+                                                                        {isCorrect ? 'Правильный выбор ✓' : 'Неправильный выбор ✗'}
                                                                     </Tag>
                                                                 );
                                                             })}
@@ -694,29 +756,26 @@ export default function QuizResult() {
                                                         </Text>
                                                     )}
                                                     
+                                                    {/* Пояснения для пользователя - БЕЗ указания количества правильных вариантов */}
                                                     {userSelectedIds.length > 0 && (
-                                                        <Text type="secondary" style={{ fontSize: '11px' }}>
-                                                            Правильно выбрано: {correctSelectedCount}, Неправильно выбрано: {incorrectSelectedCount}
-                                                        </Text>
-                                                    )}
-                                                    
-                                                    {/* Пояснения для пользователя */}
-                                                    {isMultipleChoice && userSelectedIds.length > 0 && (
                                                         <Alert
                                                             message={
                                                                 questionStatus === 'correct' 
                                                                     ? "✓ Вопрос засчитан как правильный" 
-                                                                    : "⚠ Обратите внимание"
+                                                                    : "❌ Ответ неправильный"
                                                             }
                                                             description={
                                                                 questionStatus === 'correct'
-                                                                    ? "Все выбранные вами варианты правильные. Предполагается, что вы выбрали все необходимые варианты."
-                                                                    : incorrectSelectedCount > 0
-                                                                    ? "Вы выбрали неправильный вариант. В вопросах с множественным выбором все выбранные варианты должны быть правильными."
-                                                                    : "Вы не выбрали ни одного варианта."
+                                                                    ? isMultipleChoice
+                                                                        ? "Вы выбрали все правильные варианты ответа."
+                                                                        : "Вы выбрали правильный вариант ответа."
+                                                                    : isMultipleChoice
+                                                                    ? incorrectSelectedCount > 0
+                                                                        ? "Вы выбрали неправильные варианты ответа."
+                                                                        : "Вы выбрали не все правильные варианты ответа."
+                                                                    : "Вы выбрали неправильный вариант ответа."
                                                             }
-                                                            type={questionStatus === 'correct' ? "success" : 
-                                                                  incorrectSelectedCount > 0 ? "error" : "info"}
+                                                            type={questionStatus === 'correct' ? "success" : "error"}
                                                             showIcon
                                                             style={{ marginTop: 8 }}
                                                         />

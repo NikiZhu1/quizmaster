@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useCallback } from 'react';
 import { 
     Row, Col, Layout, Typography, Empty, Card, Button, Space, 
     message, Spin, Alert, Tag, Statistic, Descriptions
@@ -7,7 +7,7 @@ import { useNavigate } from 'react-router-dom';
 import Cookies from 'js-cookie';
 import { 
     TrophyOutlined, ClockCircleOutlined, CheckCircleOutlined,
-    EyeOutlined, FileTextOutlined
+    EyeOutlined, FileTextOutlined, CrownOutlined
 } from '@ant-design/icons';
 import * as api from '../API methods/attemptMethods.jsx';
 import * as quizApi from '../API methods/quizMethods.jsx';
@@ -17,17 +17,90 @@ import { useUsers } from '../hooks/useUsers.jsx';
 const { Title, Text } = Typography;
 
 export default function CompletedQuizzes() {
-    const {GetUserIdFromJWT} = useUsers();
-    const [attempts, setAttempts] = useState([]);
+    const [bestAttempts, setBestAttempts] = useState([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
     const navigate = useNavigate();
+    const {GetUserIdFromJWT} = useUsers();
 
-    useEffect(() => {
-        loadAttempts();
+    // Функция для получения лучших попыток
+    const getBestAttempts = useCallback((attemptsData) => {
+        if (!attemptsData || !Array.isArray(attemptsData)) {
+            console.log('Нет данных попыток или не массив:', attemptsData);
+            return [];
+        }
+
+        // Группируем попытки по quizId
+        const attemptsByQuiz = {};
+        
+        attemptsData.forEach(attempt => {
+            const quizId = attempt.quizId;
+            
+            if (!quizId) {
+                console.warn('Попытка без quizId:', attempt);
+                return;
+            }
+            
+            if (!attemptsByQuiz[quizId]) {
+                attemptsByQuiz[quizId] = [];
+            }
+            
+            attemptsByQuiz[quizId].push(attempt);
+        });
+
+        console.log('Сгруппированные попытки по квизам:', attemptsByQuiz);
+
+        // Для каждого квиза находим лучшую попытку
+        const bestAttemptsArray = [];
+        
+        Object.keys(attemptsByQuiz).forEach(quizId => {
+            const quizAttempts = attemptsByQuiz[quizId];
+            
+            if (quizAttempts.length === 0) return;
+            
+            // Находим лучшую попытку по баллам, а при равных баллах - по дате
+            const bestAttempt = quizAttempts.reduce((best, current) => {
+                if (!best) return current;
+
+                // Сравниваем баллы (score может быть undefined)
+                const bestScore = best.score !== undefined ? best.score : 0;
+                const currentScore = current.score !== undefined ? current.score : 0;
+
+                console.log(`Сравнение попыток для quizId ${quizId}:`, {
+                    best: {id: best.id, score: bestScore, date: best.completedAt},
+                    current: {id: current.id, score: currentScore, date: current.completedAt}
+                });
+
+                if (currentScore > bestScore) return current;
+                if (currentScore < bestScore) return best;
+
+                // При равных баллах берем самую свежую
+                const bestDate = best.completedAt ? new Date(best.completedAt) : new Date(0);
+                const currentDate = current.completedAt ? new Date(current.completedAt) : new Date(0);
+
+                return currentDate > bestDate ? current : best;
+            }, null);
+
+            if (bestAttempt) {
+                bestAttemptsArray.push(bestAttempt);
+            }
+        });
+
+        console.log('Лучшие попытки:', bestAttemptsArray);
+
+        // Сортируем по дате завершения (самые свежие первыми)
+        return bestAttemptsArray.sort((a, b) => {
+            const dateA = a.completedAt ? new Date(a.completedAt) : new Date(0);
+            const dateB = b.completedAt ? new Date(b.completedAt) : new Date(0);
+            return dateB - dateA;
+        });
     }, []);
 
-    const loadAttempts = async () => {
+    useEffect(() => {
+        loadBestAttempts();
+    }, []);
+
+    const loadBestAttempts = async () => {
         setLoading(true);
         setError(null);
         try {
@@ -37,23 +110,58 @@ export default function CompletedQuizzes() {
                 navigate('/login');
                 return;
             }
-            const userId = GetUserIdFromJWT(token);
-            const attemptsData = await api.getUserAttempts(userId);
             
-            // Загружаем дополнительную информацию о квизах для каждой попытки
-            const attemptsWithQuizInfo = await Promise.all(
-                (attemptsData || []).map(async (attempt) => {
+            const userId = GetUserIdFromJWT(token);
+            if (!userId) {
+                throw new Error('Не удалось получить ID пользователя');
+            }
+            
+            console.log('Загрузка попыток для пользователя:', userId);
+            
+            // Используем правильный метод для получения попыток пользователя
+            const attemptsData = await api.getUserAttempts(userId);
+            console.log('Полученные попытки:', attemptsData);
+            
+            if (!attemptsData || !Array.isArray(attemptsData)) {
+                console.warn('Нет попыток или неправильный формат данных:', attemptsData);
+                setBestAttempts([]);
+                return;
+            }
+            
+            // Фильтруем только завершенные попытки (у которых есть completedAt)
+            const completedAttempts = attemptsData.filter(attempt => 
+                attempt.completedAt && attempt.completedAt !== null
+            );
+            
+            console.log('Завершенные попытки:', completedAttempts);
+            
+            if (completedAttempts.length === 0) {
+                setBestAttempts([]);
+                return;
+            }
+            
+            // Получаем только лучшие попытки для каждого квиза
+            const bestAttemptsData = getBestAttempts(completedAttempts);
+            
+            console.log('Лучшие попытки после фильтрации:', bestAttemptsData);
+            
+            // Загружаем дополнительную информацию о квизах для каждой лучшей попытки
+            const bestAttemptsWithQuizInfo = await Promise.all(
+                bestAttemptsData.map(async (attempt) => {
                     try {
                         const quizInfo = await quizApi.getQuizById(attempt.quizId);
                         return { ...attempt, quizInfo };
                     } catch (err) {
                         console.error(`Ошибка загрузки квиза ${attempt.quizId}:`, err);
+                        // Возвращаем попытку без информации о квизе
                         return attempt;
                     }
                 })
             );
             
-            setAttempts(attemptsWithQuizInfo);
+            console.log('Лучшие попытки с информацией о квизах:', bestAttemptsWithQuizInfo);
+            setBestAttempts(bestAttemptsWithQuizInfo);
+            
         } catch (err) {
             console.error("Ошибка при загрузке попыток:", err);
             setError(err.message || 'Не удалось загрузить пройденные квизы');
@@ -68,10 +176,7 @@ export default function CompletedQuizzes() {
         
         if (typeof timeSpan === 'string') {
             const timeWithoutFraction = timeSpan.split('.')[0];
-            const timePattern = /^(\d{2}):(\d{2}):(\d{2})$/;
-            if (timePattern.test(timeWithoutFraction)) {
-                return timeWithoutFraction;
-            }
+            return timeWithoutFraction;
         }
         
         return "00:00:00";
@@ -118,12 +223,17 @@ export default function CompletedQuizzes() {
                     <Space>
                         <FileTextOutlined style={{ fontSize: '20px' }} />
                         <Typography.Text style={{ fontSize: '16px' }}>
-                            История ваших прохождений квизов: просматривайте результаты и анализируйте прогресс
+                            Ваши лучшие результаты по квизам. Показывается только лучшая попытка для каждого квиза.
                         </Typography.Text>
                     </Space>
                 </Card>
 
-                <Title level={2}>Пройденные квизы</Title>
+                <Title level={2}>
+                    <Space>
+                        <CrownOutlined />
+                        Лучшие результаты
+                    </Space>
+                </Title>
 
                 {loading ? (
                     <div style={{ textAlign: 'center', padding: '40px' }}>
@@ -136,12 +246,12 @@ export default function CompletedQuizzes() {
                         type="error"
                         showIcon
                         action={
-                            <Button size="small" onClick={loadAttempts}>
+                            <Button size="small" onClick={loadBestAttempts}>
                                 Попробовать снова
                             </Button>
                         }
                     />
-                ) : attempts.length === 0 ? (
+                ) : bestAttempts.length === 0 ? (
                     <Empty 
                         description="Вы еще не проходили квизы" 
                         style={{ marginTop: 40 }}
@@ -151,84 +261,114 @@ export default function CompletedQuizzes() {
                         </Button>
                     </Empty>
                 ) : (
-                    <Row gutter={[24, 24]}>
-                        {attempts.map(attempt => {
-                            const quizInfo = attempt.quizInfo;
-                            const percentage = quizInfo?.questionsCount 
-                                ? (attempt.score / quizInfo.questionsCount) * 100 
-                                : 0;
-                            
-                            return (
-                                <Col key={attempt.id} xs={24} sm={12} lg={8}>
-                                    <Card
-                                        hoverable
-                                        style={{ height: '100%' }}
-                                        actions={[
-                                            <Button
-                                                type="link"
-                                                icon={<EyeOutlined />}
-                                                onClick={() => navigate(`/quiz-result/${attempt.id}`)}
-                                            >
-                                                Посмотреть результаты
-                                            </Button>
-                                        ]}
-                                    >
-                                        <Space direction="vertical" size="middle" style={{ width: '100%' }}>
-                                            {quizInfo && (
-                                                <Title level={4} style={{ margin: 0 }}>
-                                                    {quizInfo.title}
-                                                </Title>
-                                            )}
-                                            
-                                            <Space direction="vertical" size="small" style={{ width: '100%' }}>
-                                                <Row gutter={16}>
-                                                    <Col span={12}>
-                                                        <Statistic
-                                                            title="Результат"
-                                                            value={attempt.score || 0}
-                                                            suffix={quizInfo?.questionsCount ? `из ${quizInfo.questionsCount}` : ''}
-                                                            prefix={<TrophyOutlined />}
-                                                            valueStyle={{ 
-                                                                color: getScoreColor(attempt.score || 0, quizInfo?.questionsCount || 0),
-                                                                fontSize: '24px'
-                                                            }}
-                                                        />
-                                                    </Col>
-                                                    <Col span={12}>
-                                                        <Statistic
-                                                            title="Процент"
-                                                            value={percentage.toFixed(1)}
-                                                            suffix="%"
-                                                            valueStyle={{ 
-                                                                color: getScoreColor(attempt.score || 0, quizInfo?.questionsCount || 0),
-                                                                fontSize: '24px'
-                                                            }}
-                                                        />
-                                                    </Col>
-                                                </Row>
+                    <Space direction="vertical" size="large" style={{ width: '100%' }}>
+                        <Text type="secondary">
+                            Показано {bestAttempts.length} квизов. Для каждого квиза показана лучшая попытка.
+                        </Text>
+                        
+                        <Row gutter={[24, 24]}>
+                            {bestAttempts.map((attempt, index) => {
+                                const quizInfo = attempt.quizInfo;
+                                const totalQuestions = quizInfo?.questionsCount || 0;
+                                const score = attempt.score !== undefined ? attempt.score : 0;
+                                const percentage = totalQuestions 
+                                    ? (score / totalQuestions) * 100 
+                                    : 0;
+                                
+                                return (
+                                    <Col key={`${attempt.quizId}-${attempt.id}-${index}`} xs={24} sm={12} lg={8}>
+                                        <Card
+                                            hoverable
+                                            style={{ height: '100%' }}
+                                            actions={[
+                                                <Button
+                                                    type="link"
+                                                    icon={<EyeOutlined />}
+                                                    onClick={() => navigate(`/quiz-result/${attempt.id}`)}
+                                                >
+                                                    Посмотреть детали
+                                                </Button>,
+                                                <Button
+                                                    type="link"
+                                                    onClick={() => navigate(`/quiz/${attempt.quizId}`)}
+                                                >
+                                                    Пройти снова
+                                                </Button>
+                                            ]}
+                                            extra={
+                                                <Tag color="gold" icon={<CrownOutlined />}>
+                                                    Лучшая попытка
+                                                </Tag>
+                                            }
+                                        >
+                                            <Space direction="vertical" size="middle" style={{ width: '100%' }}>
+                                                {quizInfo ? (
+                                                    <>
+                                                        <Title level={4} style={{ margin: 0 }}>
+                                                            {quizInfo.title}
+                                                        </Title>
+                                                        
+                                                        {quizInfo.description && (
+                                                            <Text type="secondary" ellipsis={{ rows: 2 }}>
+                                                                {quizInfo.description}
+                                                            </Text>
+                                                        )}
+                                                    </>
+                                                ) : (
+                                                    <Title level={4} style={{ margin: 0 }}>
+                                                        Квиз #{attempt.quizId}
+                                                    </Title>
+                                                )}
                                                 
-                                                <Descriptions column={1} size="small" bordered>
-                                                    <Descriptions.Item 
-                                                        label={<><ClockCircleOutlined /> Время</>}
-                                                    >
-                                                        {formatTimeSpan(attempt.timeSpent)}
-                                                    </Descriptions.Item>
-                                                    <Descriptions.Item 
-                                                        label={<><CheckCircleOutlined /> Завершено</>}
-                                                    >
-                                                        {formatDate(attempt.completedAt)}
-                                                    </Descriptions.Item>
-                                                </Descriptions>
+                                                <Space direction="vertical" size="small" style={{ width: '100%' }}>
+                                                    <Row gutter={16}>
+                                                        <Col span={12}>
+                                                            <Statistic
+                                                                title="Результат"
+                                                                value={score}
+                                                                suffix={totalQuestions ? `из ${totalQuestions}` : ''}
+                                                                prefix={<TrophyOutlined />}
+                                                                valueStyle={{ 
+                                                                    color: getScoreColor(score, totalQuestions),
+                                                                    fontSize: '24px'
+                                                                }}
+                                                            />
+                                                        </Col>
+                                                        <Col span={12}>
+                                                            <Statistic
+                                                                title="Процент"
+                                                                value={percentage.toFixed(1)}
+                                                                suffix="%"
+                                                                valueStyle={{ 
+                                                                    color: getScoreColor(score, totalQuestions),
+                                                                    fontSize: '24px'
+                                                                }}
+                                                            />
+                                                        </Col>
+                                                    </Row>
+                                                    
+                                                    <Descriptions column={1} size="small" bordered>
+                                                        <Descriptions.Item 
+                                                            label={<><ClockCircleOutlined /> Время прохождения</>}
+                                                        >
+                                                            {formatTimeSpan(attempt.timeSpent)}
+                                                        </Descriptions.Item>
+                                                        <Descriptions.Item 
+                                                            label={<><CheckCircleOutlined /> Дата завершения</>}
+                                                        >
+                                                            {formatDate(attempt.completedAt)}
+                                                        </Descriptions.Item>
+                                                    </Descriptions>
+                                                </Space>
                                             </Space>
-                                        </Space>
-                                    </Card>
-                                </Col>
-                            );
-                        })}
-                    </Row>
+                                        </Card>
+                                    </Col>
+                                );
+                            })}
+                        </Row>
+                    </Space>
                 )}
             </div>
         </Layout>
     );
 }
-
