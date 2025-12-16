@@ -8,6 +8,11 @@ export const useUsers = () => {
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState(null);
 
+    const userPicture = (userId) => {
+        const link = `https://api.dicebear.com/7.x/avataaars/svg?seed=${userId}`;
+        return link
+    }
+
     // Функция авторизации
     const loginUser = async (values) => {
         setLoading(true);
@@ -57,6 +62,9 @@ export const useUsers = () => {
     // Функция выхода
     const logoutUser = () => {
         Cookies.remove('token');
+        Cookies.remove('guestSessionId');
+        Cookies.remove('refreshToken');
+        Cookies.remove('guest_session_id');
     };
 
     // Получение информации о пользователе
@@ -129,6 +137,7 @@ export const useUsers = () => {
     return {
         loading,
         error,
+        userPicture,
         loginUser,
         registerUser,
         logoutUser,

@@ -3,30 +3,39 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { 
     Card, Row, Col, Statistic, Progress, Button, 
     Typography, Space, List, Tag, Alert, Descriptions, Layout, 
-    Divider, Tooltip, Radio, Checkbox, Badge, Spin
+    Divider, Tooltip, Radio, Checkbox, Badge, Spin,
+    Flex,
+    Avatar
 } from 'antd';
 import { 
     CheckCircleOutlined, ClockCircleOutlined, 
     HomeOutlined, TrophyOutlined, CloseCircleOutlined,
     QuestionCircleOutlined, FieldTimeOutlined,
     CheckOutlined, CloseOutlined, InfoCircleOutlined,
-    ExclamationCircleOutlined
+    ExclamationCircleOutlined,
+    UserOutlined
 } from '@ant-design/icons';
 import * as api from '../API methods/attemptMethods.jsx';
-import * as quizApi from '../API methods/quizMethods.jsx';
-import * as questionApi from '../API methods/questionMethods.jsx';
+
 import HeaderComponent from '../components/HeaderComponent.jsx';
+import { useQuizes } from '../hooks/useQuizes.jsx';
+import { useQuestions } from '../hooks/useQuestions.jsx';
+import { useUsers } from '../hooks/useUsers.jsx';
 
 const { Title, Text, Paragraph } = Typography;
 
 export default function QuizResult() {
     const { attemptId } = useParams();
     const navigate = useNavigate();
+    const {getQuizById, getQuizQuestions} = useQuizes();
+    const {getQuestionById} = useQuestions();
+    const {getUserInfo, userPicture} = useUsers();
     
-    const [result, setResult] = useState(null);
-    const [quizInfo, setQuizInfo] = useState(null);
-    const [answers, setAnswers] = useState([]);
-    const [questions, setQuestions] = useState([]);
+    const [result, setResult] = useState(null); //Данные попытки
+    const [passedUsername, setPassedUsername] = useState('Гость');
+    const [quizInfo, setQuizInfo] = useState(null); //Данные пройденного квиза
+    const [answers, setAnswers] = useState([]); //Данные ответов пользователя
+    const [questions, setQuestions] = useState([]); //Данные вопросов
     const [questionsWithOptions, setQuestionsWithOptions] = useState([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
@@ -38,6 +47,11 @@ export default function QuizResult() {
                 const attemptData = await api.getAttemptById(attemptId);
                 console.log('Данные попытки:', attemptData);
                 setResult(attemptData);
+                if (attemptData.guestSessionId === null) {
+                    const passedUser = await getUserInfo(attemptData.userId)
+                    console.log("Пользователь попытки", passedUser)
+                    setPassedUsername(passedUser.name)
+                }
                 
                 // 2. Загружаем ответы попытки
                 let answersData = [];
@@ -62,11 +76,11 @@ export default function QuizResult() {
                 // 3. Загружаем информацию о квизе и вопросы
                 if (attemptData.quizId) {
                     try {
-                        const quizData = await quizApi.getQuizById(attemptData.quizId);
+                        const quizData = await getQuizById(attemptData.quizId);
                         setQuizInfo(quizData);
                         
                         // 4. Загружаем вопросы квиза (без правильных ответов)
-                        const questionsData = await quizApi.getQuizQuestions(attemptData.quizId);
+                        const questionsData = await getQuizQuestions(attemptData.quizId);
                         setQuestions(questionsData);
                         console.log('Загружены вопросы:', questionsData);
                         
@@ -74,7 +88,7 @@ export default function QuizResult() {
                         const questionsWithFullData = await Promise.all(
                             questionsData.map(async (question) => {
                                 try {
-                                    const fullQuestion = await questionApi.getQuestionById(question.id);
+                                    const fullQuestion = await getQuestionById(question.id);
                                     return {
                                         ...question,
                                         options: fullQuestion.options || [],
@@ -417,6 +431,19 @@ export default function QuizResult() {
                             <Title level={2}>
                                 <TrophyOutlined /> Результаты квиза
                             </Title>
+                            <Flex gap='8px'>
+                                <Avatar 
+                                    icon={<UserOutlined />}
+                                    style={{ 
+                                        backgroundColor: '#1890ff',
+                                        color: '#fff'
+                                    }}
+                                    src={result.userId ? userPicture(result.userId) : null}
+                                    />
+                                <Text type="secondary" style={{ fontSize: '18px' }}>
+                                    {passedUsername}
+                                </Text>
+                            </Flex>
                             {quizInfo && (
                                 <Text type="secondary" style={{ fontSize: '18px' }}>
                                     {quizInfo.title}
@@ -428,8 +455,10 @@ export default function QuizResult() {
 
                 {/* Основная статистика */}
                 <Row gutter={[24, 24]} style={{ marginBottom: 32 }}>
+
+                    {/* Количество баллов */}
                     <Col xs={24} sm={12} md={6}>
-                        <Card hoverable>
+                        <Card>
                             <Statistic
                                 title="Результат"
                                 value={correctAnswersCount}
@@ -437,70 +466,55 @@ export default function QuizResult() {
                                 prefix={<CheckCircleOutlined />}
                                 valueStyle={{ 
                                     color: getScoreColor(percentage),
-                                    fontSize: '28px'
+                                    fontSize: '24px'
                                 }}
                             />
                         </Card>
                     </Col>
                     
+                    {/* Процент выполнения */}
                     <Col xs={24} sm={12} md={6}>
-                        <Card hoverable>
+                        <Card>
                             <Statistic
                                 title="Процент выполнения"
                                 value={percentage.toFixed(1)}
                                 suffix="%"
                                 valueStyle={{ 
                                     color: getScoreColor(percentage),
-                                    fontSize: '28px'
+                                    fontSize: '24px'
                                 }}
                             />
-                            <div style={{ marginTop: 8 }}>
-                                <Text type="secondary" style={{ fontSize: 12 }}>
-                                    {getGradeText(percentage)}
-                                </Text>
-                            </div>
                         </Card>
                     </Col>
                     
+                    {/* Потраченное время */}
                     <Col xs={24} sm={12} md={6}>
-                        <Card hoverable>
+                        <Card>
                             <Statistic
                                 title="Потраченное время"
                                 value={timeSpent}
                                 prefix={<FieldTimeOutlined />}
-                                valueStyle={{ fontSize: '20px' }}
+                                style={{ fontSize: '24px' }}
                             />
                         </Card>
                     </Col>
                     
+                    {/* Дата */}
                     <Col xs={24} sm={12} md={6}>
-                        <Card hoverable>
+                        <Card>
                             <Statistic
                                 title="Завершено"
                                 value={formatDate(result.completedAt)}
-                                valueStyle={{ fontSize: '14px' }}
+                                style={{ fontSize: '24px' }}
                             />
                         </Card>
                     </Col>
                 </Row>
 
-                {/* Прогресс-бар */}
-                <Card style={{ marginBottom: 32 }}>
-                    <Space direction="vertical" style={{ width: '100%' }}>
-                        <Text strong>Общий прогресс</Text>
-                        <Progress 
-                            percent={percentage} 
-                            strokeColor={getScoreColor(percentage)}
-                            size="large"
-                            format={() => `${correctAnswersCount}/${totalQuestions} (${percentage.toFixed(1)}%)`}
-                        />
-                    </Space>
-                </Card>
-
                 {/* Информация о квизе */}
                 {quizInfo && (
                     <Card style={{ marginBottom: 32 }}>
-                        <Title level={5}>Информация о квизе</Title>
+                        <Title level={5} style={{'margin-top': 0}}>Информация о квизе</Title>
                         <Descriptions column={{ xs: 1, sm: 2 }} size="small">
                             <Descriptions.Item label="Название">
                                 <Text strong>{quizInfo.title}</Text>
@@ -510,7 +524,7 @@ export default function QuizResult() {
                             </Descriptions.Item>
                             {quizInfo.timeLimit && (
                                 <Descriptions.Item label="Лимит времени">
-                                    <Text strong>{quizInfo.timeLimit}</Text>
+                                    <Text strong>{quizInfo.timeLimit === '00:00:00' ? 'Без ограничений' : quizInfo.timeLimit}</Text>
                                 </Descriptions.Item>
                             )}
                             <Descriptions.Item label="Всего вопросов">
@@ -525,25 +539,15 @@ export default function QuizResult() {
 
                 {/* Ответы пользователя */}
                 <Card>
-                    <Title level={4}>
-                        <QuestionCircleOutlined /> Ваши ответы
-                    </Title>
+                    <Title level={4} style={{'margin-top': 0}}> Ваши ответы </Title>
                     
-                    {questionsWithAnswers.length === 0 ? (
+                    {questionsWithAnswers.length === 0 && (
                         <Alert
-                            message="Нет данных о вопросах"
+                            title="Нет данных о вопросах"
                             description="Информация о вопросах квиза не найдена."
                             type="info"
                             showIcon
                             style={{ marginBottom: 16 }}
-                        />
-                    ) : (
-                        <Alert
-                            message={`Показаны все ${questionsWithAnswers.length} вопросов`}
-                            description="Все варианты ответов показаны. Ваши выбранные варианты подсвечены зеленым (правильные) или красным (неправильные)."
-                            type="info"
-                            showIcon
-                            style={{ marginBottom: 24 }}
                         />
                     )}
                     
@@ -568,14 +572,14 @@ export default function QuizResult() {
                             return (
                                 <List.Item 
                                     style={{ 
-                                        borderBottom: '2px solid #e8e8e8', 
-                                        padding: '24px 0',
-                                        marginBottom: '16px',
-                                        backgroundColor: 'white',
-                                        borderRadius: '8px'
+                                        borderBottom: '0px', 
+                                        padding: '24px 0 0 0',
+                                        // marginBottom: '16px',
+                                        // backgroundColor: 'white',
+                                        // borderRadius: '8px'
                                     }}
                                 >
-                                    <Space direction="vertical" style={{ width: '100%' }} size="large">
+                                    <Space orientation="vertical" style={{ width: '100%' }} size="large">
                                         {/* Заголовок вопроса */}
                                         <Row justify="space-between" align="middle" wrap={false}>
                                             <Col flex="auto">
@@ -620,7 +624,7 @@ export default function QuizResult() {
                                         
                                         {/* Показываем ВСЕ варианты ответов */}
                                         {options && options.length > 0 ? (
-                                            <Space direction="vertical" style={{ width: '100%' }} size="middle">
+                                            <Space orientation="vertical" style={{ width: '100%' }} size="middle">
                                                 <Text strong style={{ fontSize: '14px', color: '#595959' }}>
                                                     Варианты ответа:
                                                 </Text>
@@ -679,15 +683,9 @@ export default function QuizResult() {
                                                             <Space align="center" style={{ width: '100%', justifyContent: 'space-between' }}>
                                                                 <Space>
                                                                     {type === 0 ? (
-                                                                        <Radio 
-                                                                            checked={isUserSelected}
-                                                                            disabled
-                                                                        />
+                                                                        <Radio checked={isUserSelected} disabled/>
                                                                     ) : (
-                                                                        <Checkbox 
-                                                                            checked={isUserSelected}
-                                                                            disabled
-                                                                        />
+                                                                        <Checkbox checked={isUserSelected} disabled/>
                                                                     )}
                                                                     <Text style={{ 
                                                                         fontSize: '15px', 
@@ -726,7 +724,6 @@ export default function QuizResult() {
                                         )}
                                         
                                         {/* Итоговая информация по вопросу */}
-                                        <Divider style={{ margin: '8px 0' }} />
                                         <Row gutter={[16, 16]}>
                                             <Col xs={24}>
                                                 <Space direction="vertical" size="small" style={{ width: '100%' }}>
@@ -734,23 +731,7 @@ export default function QuizResult() {
                                                         Ваш результат:
                                                     </Text>
                                                     
-                                                    {userSelectedIds.length > 0 ? (
-                                                        <Space wrap>
-                                                            {answersForQuestion.map((answer, index) => {
-                                                                const isCorrect = answer.isCorrect;
-                                                                
-                                                                return (
-                                                                    <Tag 
-                                                                        key={index} 
-                                                                        color={isCorrect ? "success" : "error"}
-                                                                        style={{ fontSize: '12px', fontWeight: '500' }}
-                                                                    >
-                                                                        {isCorrect ? 'Правильный выбор ✓' : 'Неправильный выбор ✗'}
-                                                                    </Tag>
-                                                                );
-                                                            })}
-                                                        </Space>
-                                                    ) : (
+                                                    {userSelectedIds.length === 0 && (
                                                         <Text type="danger" style={{ fontSize: '12px' }}>
                                                             Ответ не предоставлен
                                                         </Text>
@@ -759,10 +740,10 @@ export default function QuizResult() {
                                                     {/* Пояснения для пользователя - БЕЗ указания количества правильных вариантов */}
                                                     {userSelectedIds.length > 0 && (
                                                         <Alert
-                                                            message={
+                                                            title={
                                                                 questionStatus === 'correct' 
-                                                                    ? "✓ Вопрос засчитан как правильный" 
-                                                                    : "❌ Ответ неправильный"
+                                                                    ? "Вопрос засчитан как правильный" 
+                                                                    : "Ответ неправильный"
                                                             }
                                                             description={
                                                                 questionStatus === 'correct'
@@ -783,6 +764,8 @@ export default function QuizResult() {
                                                 </Space>
                                             </Col>
                                         </Row>
+
+                                        <Divider/>
                                     </Space>
                                 </List.Item>
                             );

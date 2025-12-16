@@ -225,7 +225,7 @@ export default function QuizAttempt() {
         }
     };
 
-    if (loading && !attempt) {
+    if (loading) {
         return (
             <div style={{ 
                 display: 'flex', 
@@ -242,7 +242,7 @@ export default function QuizAttempt() {
         return (
             <div style={{ padding: 24 }}>
                 <Alert
-                    message="Ошибка"
+                    title="Ошибка"
                     description={error}
                     type="error"
                     showIcon
@@ -260,7 +260,7 @@ export default function QuizAttempt() {
         return (
             <div style={{ padding: 24 }}>
                 <Alert
-                    message="Нет вопросов"
+                    title="Нет вопросов"
                     description="В этом квизе пока нет вопросов."
                     type="info"
                     showIcon
@@ -285,7 +285,6 @@ export default function QuizAttempt() {
 
     return (
         <Layout style={{ minHeight: '100vh' }}>
-            <HeaderComponent />
             {/* Шапка с таймером и прогрессом */}
             <Header style={{ 
                 background: '#fff', 

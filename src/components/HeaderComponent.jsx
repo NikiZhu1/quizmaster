@@ -30,7 +30,7 @@ const HeaderStyle = {
 const HeaderComponent = () => {
   const navigate = useNavigate();
   const location = useLocation();
-  const { GetUserIdFromJWT, getUserInfo } = useUsers();
+  const { GetUserIdFromJWT, getUserInfo, logoutUser, userPicture } = useUsers();
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [userName, setUserName] = useState('');
   const [userId, setUserId] = useState(null);
@@ -84,7 +84,7 @@ const HeaderComponent = () => {
   };
 
   const handleLogout = () => {
-    Cookies.remove('token');
+    logoutUser();
     setIsAuthenticated(false);
     setUserName('');
     setUserId(null);
@@ -201,7 +201,7 @@ const HeaderComponent = () => {
                     backgroundColor: '#1890ff',
                     color: '#fff'
                   }}
-                  src={userId ? `https://api.dicebear.com/7.x/avataaars/svg?seed=${userId}` : null}
+                  src={userId ? userPicture(userId) : null}
                 />
                 <Text strong>{userName}</Text>
               </Space>
