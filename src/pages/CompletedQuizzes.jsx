@@ -128,9 +128,11 @@ export default function CompletedQuizzes() {
                 return;
             }
             
-            // Фильтруем только завершенные попытки (у которых есть completedAt)
+            // Фильтруем только завершенные попытки
             const completedAttempts = attemptsData.filter(attempt => 
-                attempt.completedAt && attempt.completedAt !== null
+                attempt.completedAt && 
+                attempt.completedAt !== null &&
+                attempt.timeSpent !== '00:00:00'
             );
             
             console.log('Завершенные попытки:', completedAttempts);

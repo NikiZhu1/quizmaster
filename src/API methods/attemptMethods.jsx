@@ -324,8 +324,6 @@ export const getUserAttempts = async (userId) => {
   }
 };
 
-// Добавьте в конец файла API methods/attemptMethods.jsx
-
 /**
  * Получает лидерборд для квиза
  * @param {number} quizId - ID квиза
@@ -360,15 +358,23 @@ export const getLeaderboard = async (quizId, guestSessionId = null) => {
         
         // Преобразуем данные в удобный формат
         const leaderboardData = Array.isArray(response.data) ? response.data : [];
-        
-        return leaderboardData.map((item, index) => ({
+
+        // Получение только по одной лучшей попытки пользователей для отображения в таблице
+        // И фильтруем записи убирая строки с нулевым временем и гостей
+        const leaderboardDataFilter = getBestAttemptsPerUser(leaderboardData.filter(attempt => 
+          attempt.completedAt && 
+          attempt.completedAt !== null &&
+          attempt.timeSpent !== '00:00:00' &&
+          attempt.userName !== 'Guest'
+        ))
+
+        return leaderboardDataFilter.map((item, index) => ({
             id: item.id || index,
-            position: index + 1,
             userId: item.userId,
-            userName: item.userName || item.username || `Участник ${index + 1}`,
-            score: item.score || item.percentage || 0,
-            timeTaken: item.timeTaken || item.duration || "00:00:00",
-            completedAt: item.completedAt || item.finishedAt || new Date().toISOString()
+            userName: item.userName || `Участник ${index + 1}`,
+            score: item.score || 0,
+            timeSpent: item.timeSpent || '00:00:00',
+            completedAt: item.completedAt || 'Не известно'
         }));
         
     } catch (error) {
@@ -402,131 +408,47 @@ export const getLeaderboard = async (quizId, guestSessionId = null) => {
     }
 };
 
+export const getBestAttemptsPerUser = (attempts) => {
+  const bestByUser = {};
 
-// // Добавим в конец файла attemptMethods.jsx (или после других методов)
-// /**
-//  * Получает лидерборд для квиза
-//  * @param {number} quizId - ID квиза
-//  * @param {string} guestSessionId - ID гостевой сессии (опционально)
-//  * @returns {Promise<Array>} - Массив лучших попыток
-//  */
-// export const getLeaderboard = async (quizId, guestSessionId = null) => {
-//     const token = Cookies.get('token');
-//     const config = {};
-//     const params = {};
+  attempts.forEach(attempt => {
+    const currentBest = bestByUser[attempt.userName];
 
-//     // Если есть токен, добавляем заголовок авторизации
-//     if (token) {
-//         config.headers = {
-//             Authorization: `Bearer ${token}`
-//         };
-//     }
+    if (!currentBest) {
+      bestByUser[attempt.userName] = attempt;
+      return;
+    }
 
-//     // Если передали guestSessionId или есть в cookies
-//     const sessionId = guestSessionId || Cookies.get('guestSessionId');
-//     if (sessionId) {
-//         params.guestSessionId = sessionId;
-//     }
+    // 1. Приоритет score
+    if (attempt.score > currentBest.score) {
+      bestByUser[attempt.userName] = attempt;
+      return;
+    }
 
-//     // Добавляем params если есть
-//     if (Object.keys(params).length > 0) {
-//         config.params = params;
-//     }
+    // 2. Если score равен — меньшее время лучше
+    if (attempt.score === currentBest.score) {
+      const attemptTime = parseTime(attempt.timeSpent);
+      const bestTime = parseTime(currentBest.timeSpent);
 
-//     try {
-//         const response = await apiClient.get(`/Attempt/quiz/${quizId}/leaderboard`, config);
-        
-//         // Преобразуем данные в нужный формат
-//         const leaderboardData = response.data || [];
-        
-//         return leaderboardData.map((item, index) => ({
-//             id: item.attemptId || index,
-//             userId: item.userId,
-//             userName: item.userName || `Игрок ${index + 1}`,
-//             score: Math.round(item.scorePercentage || 0),
-//             timeTaken: item.timeTaken || '00:00:00',
-//             completedAt: item.completedAt || new Date().toISOString(),
-//             position: index + 1
-//         }));
-//     } catch (error) {
-//         console.error(`Ошибка при получении лидерборда для квиза ${quizId}:`, error);
-        
-//         // Если ошибка авторизации и есть guestSessionId, пробуем без авторизации
-//         if (error.response?.status === 401 && sessionId) {
-//             try {
-//                 const guestResponse = await apiClient.get(`/Attempt/quiz/${quizId}/leaderboard`, {
-//                     params: { guestSessionId: sessionId }
-//                 });
-                
-//                 const guestLeaderboardData = guestResponse.data || [];
-//                 return guestLeaderboardData.map((item, index) => ({
-//                     id: item.attemptId || index,
-//                     userId: item.userId,
-//                     userName: item.userName || `Гость ${index + 1}`,
-//                     score: Math.round(item.scorePercentage || 0),
-//                     timeTaken: item.timeTaken || '00:00:00',
-//                     completedAt: item.completedAt || new Date().toISOString(),
-//                     position: index + 1
-//                 }));
-//             } catch (guestError) {
-//                 console.error('Ошибка при получении лидерборда через guestSessionId:', guestError);
-//                 return [];
-//             }
-//         }
-        
-//         // Если API не реализовано, возвращаем тестовые данные
-//         console.log('Используем тестовые данные для лидерборда');
-//         return getMockLeaderboardData();
-//     }
-// };
+      if (attemptTime < bestTime) {
+        bestByUser[attempt.userName] = attempt;
+        return;
+      }
 
-// // Функция для тестовых данных (можно удалить когда API будет готово)
-// const getMockLeaderboardData = () => {
-//     return [
-//         {
-//             id: 1,
-//             userId: 101,
-//             userName: 'Алексей',
-//             score: 95,
-//             timeTaken: '00:05:32',
-//             completedAt: '2024-01-15T14:30:00Z',
-//             position: 1
-//         },
-//         {
-//             id: 2,
-//             userId: 102,
-//             userName: 'Мария',
-//             score: 88,
-//             timeTaken: '00:06:15',
-//             completedAt: '2024-01-15T15:20:00Z',
-//             position: 2
-//         },
-//         {
-//             id: 3,
-//             userId: 103,
-//             userName: 'Иван',
-//             score: 82,
-//             timeTaken: '00:07:48',
-//             completedAt: '2024-01-14T10:15:00Z',
-//             position: 3
-//         },
-//         {
-//             id: 4,
-//             userId: 104,
-//             userName: 'Ольга',
-//             score: 78,
-//             timeTaken: '00:08:22',
-//             completedAt: '2024-01-13T16:45:00Z',
-//             position: 4
-//         },
-//         {
-//             id: 5,
-//             userId: 105,
-//             userName: 'Дмитрий',
-//             score: 72,
-//             timeTaken: '00:09:10',
-//             completedAt: '2024-01-12T11:30:00Z',
-//             position: 5
-//         }
-//     ];
-// };
+      // 3. Если и время одинаковое — более ранняя попытка
+      if (attemptTime === bestTime) {
+        if (new Date(attempt.completedAt) < new Date(currentBest.completedAt)) {
+          bestByUser[attempt.userName] = attempt;
+        }
+      }
+    }
+  });
+
+  return Object.values(bestByUser);
+};
+
+const parseTime = (time) => {
+  const [h, m, s] = time.split(':');
+  const seconds = parseFloat(s); // учитывает миллисекунды
+  return Number(h) * 3600 + Number(m) * 60 + seconds;
+};

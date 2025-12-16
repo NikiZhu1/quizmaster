@@ -81,6 +81,19 @@ export const useUsers = () => {
         }
     };
 
+    const getUserByUsername = async (username) => {
+        if (!username) return null;
+
+        try {
+            const userInfo = await api.getUserByUsername(username);
+            return userInfo;
+                
+        } catch (err) {
+            console.error('Ошибка получения пользователя:', err);
+            return null;
+        }
+    };
+
     const GetUserIdFromJWT = (token) => {
         if (!token) return null;
 
@@ -142,6 +155,7 @@ export const useUsers = () => {
         registerUser,
         logoutUser,
         getUserInfo,
+        getUserByUsername,
         GetUserIdFromJWT,
         getUserQuizzes,
         changePassword

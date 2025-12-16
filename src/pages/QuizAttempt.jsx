@@ -185,46 +185,6 @@ export default function QuizAttempt() {
         return `${formattedHours}:${formattedMinutes}:${formattedSeconds}`;
     };
 
-    // Функция для форматирования времени с текстовыми единицами
-    const formatTimeWithUnits = (seconds) => {
-        if (!seconds && seconds !== 0) return "Не ограничено";
-        
-        const hours = Math.floor(seconds / 3600);
-        const minutes = Math.floor((seconds % 3600) / 60);
-        const secs = seconds % 60;
-        
-        const parts = [];
-        if (hours > 0) parts.push(`${hours}ч`);
-        if (minutes > 0) parts.push(`${minutes}м`);
-        if (secs > 0 || parts.length === 0) parts.push(`${secs}с`);
-        
-        return parts.join(' ');
-    };
-
-    // Функция для форматирования строки времени из API
-    const formatTimeLimit = (timeString) => {
-        if (!timeString) return "Не ограничено";
-        
-        try {
-            const parts = timeString.split(':');
-            if (parts.length === 3) {
-                const hours = parseInt(parts[0]);
-                const minutes = parseInt(parts[1]);
-                const seconds = parseInt(parts[2]);
-                
-                const timeParts = [];
-                if (hours > 0) timeParts.push(`${hours}ч`);
-                if (minutes > 0) timeParts.push(`${minutes}м`);
-                if (seconds > 0) timeParts.push(`${seconds}с`);
-                
-                return timeParts.join(' ');
-            }
-            return timeString;
-        } catch {
-            return timeString;
-        }
-    };
-
     if (loading) {
         return (
             <div style={{ 

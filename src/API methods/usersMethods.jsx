@@ -53,6 +53,17 @@ export const getUserInfo = async (userId) => {
     }
 };
 
+export const getUserByUsername = async (username) => {
+    try {
+        const response = await apiClient.get(`/User/by-username/${username}`);
+        return response.data;
+    }
+    catch (error) {
+        console.error(`Ошибка при получении информации пользователя #${username}`, error);
+        throw error;
+    }
+};
+
 
 // // В useUsers.js обновите getUserInfo
 // export const getUserInfo = async (userId) => {

@@ -140,6 +140,17 @@ export const useQuestions = () => {
         }
     };
 
+    const pluralize = (count) => {
+        if (count === null || count === undefined) return 'ов';
+      
+        const mod10 = count % 10;
+        const mod100 = count % 100;
+      
+        if (mod10 === 1 && mod100 !== 11) return '';
+        if (mod10 >= 2 && mod10 <= 4 && (mod100 < 12 || mod100 > 14)) return 'а';
+        return 'ов';
+      };
+
     return {
         getQuestionById,
         createQuestion,
@@ -150,6 +161,7 @@ export const useQuestions = () => {
         createOption,
         updateOption,
         deleteOption,
+        pluralize,
         loading,
         error
     }

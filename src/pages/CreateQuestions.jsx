@@ -399,6 +399,29 @@ export default function CreateQuestions() {
         setQuestions(newQuestions);
     };
 
+    if (quiz?.isDeleted) {
+        return (
+            <Layout>
+                <HeaderComponent />
+                <div style={{ padding: '40px', maxWidth: '800px', margin: '0 auto' }}>
+                    <Alert
+                        title="Квиз удалён"
+                        description="Этот квиз был удалён, поэтому изменить его уже не получится."
+                        type="error"
+                        showIcon
+                        action={
+                            <Space orientation="vertical">
+                                <Button type="primary" onClick={() => navigate('/')}>
+                                    На главную
+                                </Button>
+                            </Space>
+                        }
+                    />
+                </div>
+            </Layout>
+        );
+    }
+
     return (
         <Layout style={{ minHeight: '100vh' }}>
             <HeaderComponent />
