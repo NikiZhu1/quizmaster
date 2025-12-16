@@ -65,7 +65,91 @@ export const useQuestions = () => {
         }
     };
 
+    const getOptionById = async (optionId) => {
+        setLoading(true);
+        setError(null);
+
+        try {
+            const question = await api.getOptionById(optionId);
+
+            return question;
+        } catch (err) {
+            setError(err);
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    const getQuestionOptions = async (questionId) => {
+        setLoading(true);
+        setError(null);
+
+        try {
+            const question = await api.getQuestionOptions(questionId);
+
+            return question;
+        } catch (err) {
+            setError(err);
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    const createOption = async (questionId, optionData, token) => {
+        setLoading(true);
+        setError(null);
+
+        try {
+            const question = await api.createOption(questionId, optionData, token);
+
+            return question;
+        } catch (err) {
+            setError(err);
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    const updateOption = async (optionId, optionData, token) => {
+        setLoading(true);
+        setError(null);
+
+        try {
+            const question = await api.updateOption(optionId, optionData, token);
+
+            return question;
+        } catch (err) {
+            setError(err);
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    const deleteOption = async (optionId, token) => {
+        setLoading(true);
+        setError(null);
+
+        try {
+            const question = await api.deleteOption(optionId, token);
+
+            return question;
+        } catch (err) {
+            setError(err);
+        } finally {
+            setLoading(false);
+        }
+    };
+
     return {
+        getQuestionById,
+        createQuestion,
+        updateQuestion,
+        deleteQuestion,
+        getOptionById,
+        getQuestionOptions,
+        createOption,
+        updateOption,
+        deleteOption,
         loading,
         error
     }
