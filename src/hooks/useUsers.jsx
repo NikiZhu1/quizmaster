@@ -100,6 +100,32 @@ export const useUsers = () => {
         }
     };
 
+    // В useUsers.js добавьте метод для смены пароля
+    const changePassword = async (userId, oldPassword, newPassword) => {
+        setLoading(true);
+        setError(null);
+        
+        try {
+            const updateData = {
+                oldPassword: oldPassword,
+                password: newPassword
+            };
+            
+            const response = await api.updateUserProfile(userId, updateData);
+            return response;
+        } catch (err) {
+            console.error('Ошибка при смене пароля:', err);
+            
+            // Пробрасываем ошибку дальше для обработки в компоненте
+            if (err.response?.data) {
+                throw new Error(err.response.data);
+            }
+            throw err;
+        } finally {
+            setLoading(false);
+        }
+    };
+
     return {
         loading,
         error,
@@ -108,6 +134,7 @@ export const useUsers = () => {
         logoutUser,
         getUserInfo,
         GetUserIdFromJWT,
-        getUserQuizzes
+        getUserQuizzes,
+        changePassword
     };
 };

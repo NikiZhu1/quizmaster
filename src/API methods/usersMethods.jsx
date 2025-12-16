@@ -53,6 +53,28 @@ export const getUserInfo = async (userId) => {
     }
 };
 
+
+// // В useUsers.js обновите getUserInfo
+// export const getUserInfo = async (userId) => {
+//     if (!userId) return null;
+
+//     try {
+//         const userInfo = await apiClient.getUserInfo(userId);
+//         console.log('Информация о пользователе получена:', userInfo);
+//         return userInfo;
+//     } catch (err) {
+//         console.error('Ошибка получения пользователя:', err);
+        
+//         // Если ошибка 401 - токен истек
+//         if (err.response?.status === 401) {
+//             Cookies.remove('token');
+//             window.location.href = '/login';
+//         }
+        
+//         return null;
+//     }
+// };
+
 /**
  * Получает квизы пользователя
  * @param {string} token - Токен авторизации
@@ -82,6 +104,129 @@ export const getUserQuizzes = async (token, userId) => {
     }
   };
 
+// export const updateUserProfile = async (userId, userData) => {
+//     const token = Cookies.get('token');
+    
+//     if (!token) {
+//         throw new Error('Требуется авторизация');
+//     }
+
+//     try {
+//         const response = await apiClient.put(`/User/${userId}`, userData, {
+//             headers: { 
+//                 Authorization: `Bearer ${token}`,
+//                 'Content-Type': 'application/json'
+//             }
+//         });
+//         return response.data;
+//     } catch (error) {
+//         console.error(`Ошибка при обновлении профиля пользователя ${userId}:`, error);
+//         throw error;
+//     }
+// };
+
+// // В файле usersMethods.js обновите метод updateUserProfile
+// export const updateUserProfile = async (userId, userData) => {
+//     const token = Cookies.get('token');
+    
+//     if (!token) {
+//         throw new Error('Требуется авторизация');
+//     }
+
+//     try {
+//         // Важно: API ожидает объект с полем userName, а не username
+//         const payload = {};
+        
+//         // Если передаем имя пользователя
+//         if (userData.userName !== undefined) {
+//             payload.userName = userData.userName;
+//         }
+        
+//         // Если передаем пароль
+//         if (userData.password !== undefined) {
+//             payload.password = userData.password;
+//         }
+
+//         console.log('Отправляемые данные:', payload); // Для отладки
+
+//         const response = await apiClient.put(`/User/${userId}`, payload, {
+//             headers: { 
+//                 Authorization: `Bearer ${token}`,
+//                 'Content-Type': 'application/json'
+//             }
+//         });
+        
+//         console.log('Ответ от сервера:', response.data); // Для отладки
+//         return response.data;
+//     } catch (error) {
+//         console.error(`Ошибка при обновлении профиля пользователя ${userId}:`, error);
+        
+//         // Более детальная информация об ошибке
+//         if (error.response) {
+//             console.error('Данные ошибки:', error.response.data);
+//             console.error('Статус ошибки:', error.response.status);
+//             console.error('Заголовки ошибки:', error.response.headers);
+//         }
+        
+//         throw error;
+//     }
+// };
+
+// export const updateUserProfile = async (userId, userData) => {
+//     const token = Cookies.get('token');
+    
+//     if (!token) {
+//         throw new Error('Требуется авторизация');
+//     }
+
+//     try {
+//         // Подготавливаем данные согласно UserUpdateDto из API
+//         const payload = {};
+        
+//         // Если передаем имя пользователя
+//         if (userData.userName !== undefined) {
+//             payload.userName = userData.userName;
+//         }
+        
+//         // Если передаем старый пароль (для смены пароля)
+//         if (userData.oldPassword !== undefined) {
+//             payload.oldPassword = userData.oldPassword;
+//         }
+        
+//         // Если передаем новый пароль
+//         if (userData.password !== undefined) {
+//             payload.password = userData.password;
+//         }
+
+//         console.log('Отправка запроса на обновление пользователя:', {
+//             url: `/User/${userId}`,
+//             method: 'PUT',
+//             data: payload
+//         });
+
+//         const response = await apiClient.put(`/User/${userId}`, payload, {
+//             headers: { 
+//                 Authorization: `Bearer ${token}`,
+//                 'Content-Type': 'application/json'
+//             }
+//         });
+        
+//         console.log('Успешный ответ от сервера:', response.data);
+//         return response.data;
+//     } catch (error) {
+//         console.error(`Ошибка при обновлении профиля пользователя ${userId}:`, error);
+        
+//         // Детальная информация об ошибке для отладки
+//         if (error.response) {
+//             console.error('Статус ошибки:', error.response.status);
+//             console.error('Данные ошибки:', error.response.data);
+//             console.error('Заголовки:', error.response.headers);
+//         }
+        
+//         throw error;
+//     }
+// };
+
 export const updateUserProfile = async (userId, userData) => {
     const token = Cookies.get('token');
     
@@ -90,15 +235,47 @@ export const updateUserProfile = async (userId, userData) => {
     }
 
     try {
-        const response = await apiClient.put(`/User/${userId}`, userData, {
+        // Подготавливаем данные согласно UserUpdateDto из API
+        const payload = {};
+        
+        // Если передаем имя пользователя
+        if (userData.userName !== undefined) {
+            payload.userName = userData.userName;
+        }
+        
+        // Если передаем старый пароль (для смены пароля)
+        if (userData.oldPassword !== undefined) {
+            payload.oldPassword = userData.oldPassword;
+        }
+        
+        // Если передаем новый пароль
+        if (userData.password !== undefined) {
+            payload.password = userData.password;
+        }
+
+        console.log('Отправка запроса на обновление пользователя:', {
+            url: `/User/${userId}`,
+            method: 'PUT',
+            data: payload
+        });
+
+        const response = await apiClient.put(`/User/${userId}`, payload, {
             headers: { 
                 Authorization: `Bearer ${token}`,
                 'Content-Type': 'application/json'
             }
         });
+        
+        console.log('Успешный ответ от сервера:', response.data);
         return response.data;
     } catch (error) {
         console.error(`Ошибка при обновлении профиля пользователя ${userId}:`, error);
-        throw error;
+        
+        // Пробрасываем ошибку с детальной информацией
+        const apiError = new Error(error.response?.data?.message || error.message);
+        apiError.response = error.response;
+        apiError.status = error.response?.status;
+        
+        throw apiError;
     }
 };

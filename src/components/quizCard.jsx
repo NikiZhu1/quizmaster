@@ -1,117 +1,170 @@
-import React, { useState } from 'react';
-import { Card, Modal, Button, Typography, Tag, Space } from 'antd';
-import { ClockCircleOutlined, QuestionCircleOutlined } from '@ant-design/icons';
+import React, { useState, useEffect } from 'react';
+import { Card, Typography, Tag, Space, Skeleton } from 'antd';
+import { ClockCircleOutlined, UserOutlined, QuestionCircleOutlined } from '@ant-design/icons';
 import { useNavigate } from 'react-router-dom';
+import { getUserInfo } from '../API methods/usersMethods';
 
 const { Text, Paragraph, Title } = Typography;
 
 function QuizCard({ quiz }) {
     const navigate = useNavigate();
-    const [modalVisible, setModalVisible] = useState(false);
+    const [authorName, setAuthorName] = useState('');
+    const [loadingAuthor, setLoadingAuthor] = useState(false);
 
-    const handleStartQuiz = () => {
-        // Закрываем модальное окно и переходим на страницу прохождения квиза
-        setModalVisible(false);
-        navigate(`/quiz/${quiz.id}`);
-    };
+    useEffect(() => {
+        loadAuthorInfo();
+    }, [quiz.authorId]); // Используем authorId вместо userId
 
-    const formatTime = (seconds) => {
-        if (!seconds) return "Не ограничено";
-        const hours = Math.floor(seconds / 3600);
-        const minutes = Math.floor((seconds % 3600) / 60);
-        const secs = seconds % 60;
+    const loadAuthorInfo = async () => {
+        // Используем authorId из данных квиза
+        const authorId = quiz.authorId || quiz.userId;
         
-        if (hours > 0) {
-            return `${hours}ч ${minutes}м ${secs}с`;
-        } else if (minutes > 0) {
-            return `${minutes}м ${secs}с`;
-        } else {
-            return `${secs}с`;
+        if (!authorId) {
+            setAuthorName('Неизвестный автор');
+            return;
+        }
+
+        setLoadingAuthor(true);
+        try {
+            const authorInfo = await getUserInfo(authorId);
+            setAuthorName(authorInfo?.name || authorInfo?.userName || authorInfo?.username || 'Неизвестный автор');
+        } catch (error) {
+            console.warn('Не удалось загрузить информацию об авторе:', error);
+            setAuthorName('Неизвестный автор');
+        } finally {
+            setLoadingAuthor(false);
         }
     };
 
-    return (
-        <>
-            {/* Карточка */}
-            <Card
-                hoverable
-                onClick={() => setModalVisible(true)}
-                style={{
-                    width: '100%',
-                    minHeight: 180,
-                    borderRadius: 8,
-                    transition: 'all 0.3s',
-                }}
-                styles={{ body: { padding: 16 } }}
-            >
-                <Space direction="vertical" size="small" style={{ width: '100%' }}>
-                    <Title level={5} style={{ margin: 0 }}>
-                        {quiz.title}
-                    </Title>
-                    
-                    <Paragraph 
-                        ellipsis={{ rows: 2 }} 
-                        style={{ margin: 0, color: 'rgba(0, 0, 0, 0.65)' }}
-                    >
-                        {quiz.description || 'Описание отсутствует'}
-                    </Paragraph>
-                    
-                    <div style={{ marginTop: 'auto' }}>
-                        <Tag icon={<ClockCircleOutlined />} color="blue">
-                            {formatTime(quiz.timeLimit)}
-                        </Tag>
-                    </div>
-                </Space>
-            </Card>
+    const handleCardClick = () => {
+        navigate(`/quiz/${quiz.id}`);
+    };
 
-            {/* Модальное окно */}
-            <Modal
-                title={
-                    <Space>
-                        <QuestionCircleOutlined />
-                        <span>{quiz.title}</span>
-                    </Space>
+    const formatTime = (timeString) => {
+        if (!timeString || timeString === "00:00:00") return null;
+        
+        try {
+            const parts = timeString.split(':');
+            if (parts.length === 3) {
+                const hours = parseInt(parts[0]);
+                const minutes = parseInt(parts[1]);
+                const seconds = parseInt(parts[2]);
+                
+                if (hours > 0) {
+                    return `${hours}ч ${minutes}м`;
+                } else if (minutes > 0) {
+                    return `${minutes}м ${seconds}с`;
+                } else {
+                    return `${seconds}с`;
                 }
-                open={modalVisible}
-                onCancel={() => setModalVisible(false)}
-                footer={[
-                    <Button key="cancel" onClick={() => setModalVisible(false)}>
-                        Закрыть
-                    </Button>,
-                    <Button 
-                        key="start" 
-                        type="primary" 
-                        onClick={handleStartQuiz}
-                    >
-                        Начать прохождение
-                    </Button>
-                ]}
-                width={600}
+            }
+            return timeString;
+        } catch (error) {
+            return timeString;
+        }
+    };
+
+    const getTimeDisplay = () => {
+        if (!quiz.timeLimit || quiz.timeLimit === "00:00:00") {
+            return null;
+        }
+        const formatted = formatTime(quiz.timeLimit);
+        if (!formatted) return null;
+        
+        return (
+            <Tag 
+                icon={<ClockCircleOutlined />} 
+                color="blue"
+                style={{ margin: 0, fontSize: '12px' }}
             >
-                <Space direction="vertical" size="middle" style={{ width: '100%' }}>
-                    {quiz.description && (
-                        <div>
-                            <Text strong>Описание:</Text>
-                            <Paragraph style={{ marginTop: 8 }}>
-                                {quiz.description}
-                            </Paragraph>
-                        </div>
+                {formatted}
+            </Tag>
+        );
+    };
+
+    return (
+        <Card
+            hoverable
+            onClick={handleCardClick}
+            style={{
+                width: '100%',
+                height: '180px',
+                borderRadius: 8,
+                transition: 'all 0.3s',
+                cursor: 'pointer',
+                display: 'flex',
+                flexDirection: 'column'
+            }}
+            styles={{ 
+                body: { 
+                    padding: 16,
+                    flex: 1,
+                    display: 'flex',
+                    flexDirection: 'column'
+                } 
+            }}
+        >
+            <div style={{ display: 'flex', flexDirection: 'column', flex: 1, gap: 8 }}>
+                <Title 
+                    level={5} 
+                    style={{ 
+                        margin: 0, 
+                        lineHeight: 1.3,
+                        fontSize: '16px',
+                        overflow: 'hidden',
+                        textOverflow: 'ellipsis',
+                        display: '-webkit-box',
+                        WebkitLineClamp: 2,
+                        WebkitBoxOrient: 'vertical'
+                    }}
+                >
+                    {quiz.title}
+                </Title>
+                
+                {/* Автор */}
+                <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                    <UserOutlined style={{ fontSize: '12px', color: '#8c8c8c' }} />
+                    {loadingAuthor ? (
+                        <Skeleton.Input active size="small" style={{ width: 100, height: 14 }} />
+                    ) : (
+                        <Text type="secondary" style={{ fontSize: '12px' }}>
+                            {authorName}
+                        </Text>
                     )}
-                    
-                    <Space>
-                        <Tag icon={<ClockCircleOutlined />} color="blue">
-                            Время: {formatTime(quiz.timeLimit)}
-                        </Tag>
-                    </Space>
-                    
-                    <div>
-                        <Text type="secondary">
-                            Нажмите "Начать прохождение" чтобы приступить к квизу
+                </div>
+                
+                <Paragraph 
+                    ellipsis={{ rows: 2 }} 
+                    style={{ 
+                        margin: 0, 
+                        color: 'rgba(0, 0, 0, 0.65)',
+                        fontSize: '13px',
+                        lineHeight: 1.4,
+                        flex: 1
+                    }}
+                >
+                    {quiz.description || 'Описание отсутствует'}
+                </Paragraph>
+                
+                <div style={{ 
+                    marginTop: 'auto', 
+                    display: 'flex', 
+                    justifyContent: 'space-between', 
+                    alignItems: 'center' 
+                }}>
+                    {/* Количество вопросов */}
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                        <QuestionCircleOutlined style={{ fontSize: '12px', color: '#8c8c8c' }} />
+                        <Text type="secondary" style={{ fontSize: '12px' }}>
+                            {quiz.questionsCount || '?'} вопросов
                         </Text>
                     </div>
-                </Space>
-            </Modal>
-        </>
+                    
+                    {/* Ограничение по времени */}
+                    {getTimeDisplay()}
+                </div>
+            </div>
+        </Card>
     );
 }
 

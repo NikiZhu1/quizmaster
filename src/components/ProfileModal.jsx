@@ -5,11 +5,12 @@ import {
 } from 'antd';
 import { 
     UserOutlined, LockOutlined, SaveOutlined, 
-    CheckCircleOutlined, KeyOutlined, SafetyOutlined
+    CheckCircleOutlined, KeyOutlined, SafetyOutlined,
+    CloseOutlined
 } from '@ant-design/icons';
 import Cookies from 'js-cookie';
 import apiClient from '../API methods/.APIclient';
-import { updateUserProfile } from '../API methods/usersMethods'; // Импортируем метод из API
+import { updateUserProfile } from '../API methods/usersMethods';
 
 const { Title, Text } = Typography;
 const { TabPane } = Tabs;
@@ -35,6 +36,14 @@ const ProfileModal = ({
         }
     }, [visible, userId]);
 
+    // Сброс форм при закрытии модального окна
+    useEffect(() => {
+        if (!visible) {
+            form.resetFields();
+            passwordForm.resetFields();
+        }
+    }, [visible]);
+
     const loadUserData = async () => {
         try {
             const token = Cookies.get('token');
@@ -56,7 +65,7 @@ const ProfileModal = ({
         }
     };
 
-    // Обработчик изменения профиля
+    // Обработчик изменения профиля (только имя пользователя)
     const handleProfileUpdate = async (values) => {
         setLoading(true);
         try {
@@ -66,42 +75,66 @@ const ProfileModal = ({
                 return;
             }
 
-            const updateData = {};
-            if (values.userName && values.userName !== userName) {
-                updateData.userName = values.userName;
-            }
-
-            // Проверяем, есть ли что обновлять
-            if (Object.keys(updateData).length === 0) {
+            // Проверяем, действительно ли изменилось имя
+            const newUserName = values.userName?.trim();
+            if (!newUserName || newUserName === userName) {
                 message.info('Нет изменений для сохранения');
                 return;
             }
+
+            // Подготавливаем данные для отправки
+            const updateData = {
+                userName: newUserName
+            };
+
+            console.log('Обновление профиля:', {
+                userId,
+                updateData,
+                currentName: userName
+            });
 
             // Используем метод из usersMethods
             const response = await updateUserProfile(userId, updateData);
 
             message.success('Профиль успешно обновлен!');
-            onUpdateUser({ 
-                userName: values.userName || userName 
-            });
             
-            // Закрываем модальное окно через секунду
+            // Обновляем данные в родительском компоненте
+            if (onUpdateUser) {
+                onUpdateUser({ 
+                    userName: newUserName 
+                });
+            }
+            
+            // Обновляем локальное состояние
+            setUserData(prev => ({
+                ...prev,
+                userName: newUserName
+            }));
+
+            // Закрываем модальное окно
             setTimeout(() => {
                 onClose();
-            }, 1000);
+                form.resetFields();
+            }, 500);
 
         } catch (error) {
-            console.error('Ошибка обновления профиля:', error);
+            console.error('Полная ошибка обновления профиля:', error);
             
             if (error.response?.status === 400) {
-                message.error('Некорректные данные. Проверьте введенные значения.');
-            } else if (error.response?.status === 409) {
-                message.error('Этот никнейм уже занят. Выберите другой.');
+                const errorData = error.response.data;
+                if (errorData.includes('UserName') || errorData.includes('username')) {
+                    message.error('Этот никнейм уже занят. Выберите другой.');
+                } else {
+                    message.error('Некорректные данные. Проверьте введенные значения.');
+                }
             } else if (error.response?.status === 401) {
                 message.error('Ошибка авторизации. Пожалуйста, войдите снова.');
-                // Можно предложить перелогиниться
                 Cookies.remove('token');
                 window.location.href = '/login';
+            } else if (error.response?.status === 404) {
+                message.error('Пользователь не найден.');
+            } else if (error.response?.status === 500) {
+                message.error('Ошибка сервера. Попробуйте позже.');
             } else {
                 message.error('Не удалось обновить профиль');
             }
@@ -110,7 +143,7 @@ const ProfileModal = ({
         }
     };
 
-    // Обработчик изменения пароля
+    // Обработчик изменения пароля с проверкой старого пароля
     const handlePasswordChange = async (values) => {
         setPasswordLoading(true);
         try {
@@ -120,35 +153,75 @@ const ProfileModal = ({
                 return;
             }
 
-            const updateData = {};
-            
-            // Проверяем новый пароль
-            if (values.newPassword && values.newPassword.length >= 6) {
-                updateData.password = values.newPassword;
-            } else {
+            // Проверяем обязательные поля
+            if (!values.oldPassword) {
+                message.error('Введите текущий пароль');
+                return;
+            }
+
+            if (!values.newPassword || values.newPassword.length < 6) {
                 message.error('Новый пароль должен содержать минимум 6 символов');
                 return;
             }
 
-            // Используем тот же метод для обновления пароля
+            // Проверяем, что новый пароль отличается от старого
+            if (values.oldPassword === values.newPassword) {
+                message.error('Новый пароль должен отличаться от старого');
+                return;
+            }
+
+            // Подготавливаем данные согласно API спецификации
+            const updateData = {
+                oldPassword: values.oldPassword,
+                password: values.newPassword
+            };
+
+            console.log('Изменение пароля для пользователя:', userId, updateData);
+
+            // Используем метод обновления профиля
             const response = await updateUserProfile(userId, updateData);
 
             message.success('Пароль успешно изменен!');
+            
+            // Сбрасываем форму
             passwordForm.resetFields();
             
-            // Опционально: принудительный выход пользователя после смены пароля
-            // Cookies.remove('token');
-            // window.location.href = '/login';
+            // Закрываем модальное окно
+            onClose();
+            
+            // Рекомендуется выйти пользователя после смены пароля
+            setTimeout(() => {
+                message.info('Для безопасности, пожалуйста, войдите с новым паролем.');
+                Cookies.remove('token');
+                window.location.href = '/login';
+            }, 1000);
 
         } catch (error) {
             console.error('Ошибка смены пароля:', error);
             
             if (error.response?.status === 400) {
-                message.error('Некорректные данные пароля');
+                const errorData = error.response.data;
+                if (typeof errorData === 'string') {
+                    if (errorData.includes('OldPassword') || errorData.includes('старый пароль') || errorData.includes('неверный')) {
+                        message.error('Неверный текущий пароль');
+                    } else if (errorData.includes('Password') || errorData.includes('пароль')) {
+                        message.error('Новый пароль не соответствует требованиям');
+                    } else {
+                        message.error(errorData);
+                    }
+                } else if (errorData.errors) {
+                    // Если ошибки в виде объекта
+                    const errorMessages = Object.values(errorData.errors).flat();
+                    message.error(errorMessages[0] || 'Ошибка при смене пароля');
+                } else {
+                    message.error('Некорректные данные пароля');
+                }
             } else if (error.response?.status === 401) {
-                message.error('Неверные учетные данные');
+                message.error('Сессия истекла. Пожалуйста, войдите снова.');
                 Cookies.remove('token');
                 window.location.href = '/login';
+            } else if (error.response?.status === 500) {
+                message.error('Ошибка сервера при изменении пароля');
             } else {
                 message.error('Не удалось изменить пароль');
             }
@@ -174,6 +247,36 @@ const ProfileModal = ({
         },
     });
 
+    // Проверка, что новый пароль отличается от старого
+    const validateNewPasswordDifferent = ({ getFieldValue }) => ({
+        validator(_, value) {
+            const oldPassword = getFieldValue('oldPassword');
+            if (!oldPassword || !value || oldPassword !== value) {
+                return Promise.resolve();
+            }
+            return Promise.reject(new Error('Новый пароль должен отличаться от старого'));
+        },
+    });
+
+    // Обработчик закрытия модального окна
+    const handleCancel = () => {
+        form.resetFields();
+        passwordForm.resetFields();
+        onClose();
+    };
+
+    // Обработчик отмены на вкладке безопасности
+    const handleSecurityCancel = () => {
+        passwordForm.resetFields();
+        onClose();
+    };
+
+    // Обработчик отмены на вкладке профиля
+    const handleProfileCancel = () => {
+        form.resetFields();
+        onClose();
+    };
+
     return (
         <Modal
             title={
@@ -183,11 +286,12 @@ const ProfileModal = ({
                 </Space>
             }
             open={visible}
-            onCancel={onClose}
+            onCancel={handleCancel}
             footer={null}
             width={600}
             centered
             destroyOnClose
+            maskClosable={false}
         >
             <div style={{ padding: '10px 0' }}>
                 {/* Аватар и основная информация */}
@@ -227,6 +331,7 @@ const ProfileModal = ({
                     onChange={setActiveTab}
                     centered
                     style={{ marginBottom: 20 }}
+                    destroyInactiveTabPane={true}
                 >
                     <TabPane 
                         tab={
@@ -284,7 +389,10 @@ const ProfileModal = ({
 
                         <div style={{ textAlign: 'right', marginTop: 20 }}>
                             <Space>
-                                <Button onClick={onClose}>
+                                <Button 
+                                    onClick={handleProfileCancel}
+                                    icon={<CloseOutlined />}
+                                >
                                     Отмена
                                 </Button>
                                 <Button 
@@ -307,17 +415,33 @@ const ProfileModal = ({
                         layout="vertical"
                         onFinish={handlePasswordChange}
                     >
+                        <Form.Item
+                            label="Текущий пароль"
+                            name="oldPassword"
+                            rules={[
+                                { required: true, message: 'Введите текущий пароль' }
+                            ]}
+                        >
+                            <Input.Password 
+                                prefix={<LockOutlined />}
+                                placeholder="Введите текущий пароль"
+                                size="large"
+                            />
+                        </Form.Item>
+
+                        <Divider />
 
                         <Form.Item
                             label="Новый пароль"
                             name="newPassword"
                             rules={[
                                 { required: true, message: 'Введите новый пароль' },
-                                { validator: validatePassword }
+                                { validator: validatePassword },
+                                { validator: validateNewPasswordDifferent }
                             ]}
                         >
                             <Input.Password 
-                                prefix={<LockOutlined />}
+                                prefix={<KeyOutlined />}
                                 placeholder="Введите новый пароль"
                                 size="large"
                             />
@@ -347,12 +471,20 @@ const ProfileModal = ({
                             style={{ marginBottom: 20 }}
                         />
 
+                        <Alert
+                            message="Важная информация"
+                            description="После успешной смены пароля вы будете перенаправлены на страницу входа для повторной авторизации."
+                            type="warning"
+                            showIcon
+                            style={{ marginBottom: 20 }}
+                        />
+
                         <div style={{ textAlign: 'right', marginTop: 20 }}>
                             <Space>
-                                <Button onClick={() => {
-                                    passwordForm.resetFields();
-                                    setActiveTab('profile');
-                                }}>
+                                <Button 
+                                    onClick={handleSecurityCancel}
+                                    icon={<CloseOutlined />}
+                                >
                                     Отмена
                                 </Button>
                                 <Button 
