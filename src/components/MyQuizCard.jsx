@@ -3,12 +3,13 @@ import { Card, Dropdown, Typography, Tag, Space, Modal, message } from 'antd';
 import { ClockCircleOutlined, MoreOutlined, EditOutlined, DeleteOutlined } from '@ant-design/icons';
 import { useNavigate } from 'react-router-dom';
 import Cookies from 'js-cookie';
-import * as quizApi from '../API methods/quizMethods.jsx';
+import { useQuizes } from '../hooks/useQuizes.jsx'
 
 const { Text, Paragraph, Title } = Typography;
 
 function MyQuizCard({ quiz, onDelete }) {
     const navigate = useNavigate();
+    const {deleteQuiz} = useQuizes();
     const [deleteModalVisible, setDeleteModalVisible] = useState(false);
 
     const formatTime = (seconds) => {
@@ -44,7 +45,7 @@ function MyQuizCard({ quiz, onDelete }) {
                 return;
             }
             
-            await quizApi.deleteQuiz(token, quiz.id);
+            await deleteQuiz(token, quiz.id);
             message.success('Квиз успешно удален');
             setDeleteModalVisible(false);
             

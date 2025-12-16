@@ -53,12 +53,12 @@ export const useQuizes = () => {
         }
     };
 
-    const updateQuiz = async (token, quizData) => {
+    const updateQuiz = async (token, id, quizData) => {
         setLoading(true);
         setError(null);
         
         try {
-            const quizzesData = await api.updateQuiz(token, quizData);
+            const quizzesData = await api.updateQuiz(token, id, quizData);
             return quizzesData;
 
         } catch (err) {

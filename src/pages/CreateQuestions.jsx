@@ -2,20 +2,23 @@ import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import {
     Layout, Card, Form, Input, Radio, Button, Space, Typography,
-    Checkbox, message, Row, Col, Divider, List, Empty, Popconfirm,
-    TimePicker, Switch, Collapse, Modal
+    Checkbox, message, Row, Col, Divider, List, Empty,
+    TimePicker, Switch, Collapse, Modal,
+    Alert, Spin
 } from 'antd';
 import {
-    PlusOutlined, DeleteOutlined, SaveOutlined, QuestionCircleOutlined,
+    PlusOutlined, DeleteOutlined, SaveOutlined,
     CheckCircleOutlined, ArrowLeftOutlined, CheckOutlined,
     ClockCircleOutlined, LockOutlined, GlobalOutlined, EditOutlined,
-    CaretRightFilled, ArrowUpOutlined, ArrowDownOutlined
+    CaretRightFilled, ArrowUpOutlined, ArrowDownOutlined,
+    UnlockOutlined,
+    ExclamationCircleOutlined
 } from '@ant-design/icons';
 import Cookies from 'js-cookie';
 import dayjs from 'dayjs';
 import HeaderComponent from '../components/HeaderComponent';
-import { createQuestion, updateQuestion, updateOption, getQuestionById, createOption, deleteOption, deleteQuestion } from '../API methods/questionMethods';
 import { useQuizes } from '../hooks/useQuizes';
+import { useQuestions } from '../hooks/useQuestions';
 import '../App.css';
 
 const { Content } = Layout;
@@ -24,6 +27,7 @@ const { TextArea } = Input;
 
 export default function CreateQuestions() {
     const {getQuizById, updateQuiz, getQuizQuestions} = useQuizes();
+    const {createQuestion, updateQuestion, updateOption, getQuestionById, createOption, deleteOption, deleteQuestion} = useQuestions();
     const { quizId } = useParams();
     const navigate = useNavigate();
     const [form] = Form.useForm();
@@ -90,6 +94,8 @@ export default function CreateQuestions() {
 
     const onQuizUpdate = async (values) => {
         setSavingQuiz(true);
+
+        console.log(values)
         
         try {
             const token = Cookies.get('token');
@@ -105,7 +111,7 @@ export default function CreateQuestions() {
                 title: values.title,
                 description: values.description || '',
                 category: values.category || 0,
-                isPublic: values.accessMode === 'public',
+                // isPublic: values.accessMode === 'public',
                 timeLimit: hasTimeLimit && values.timeLimit 
                     ? dayjs(values.timeLimit).format('HH:mm:ss')
                     : '00:00:00'
@@ -331,6 +337,18 @@ export default function CreateQuestions() {
         }
     };
 
+    const handleDeleteWithConfirm = (questionId, text) => {      
+        Modal.confirm({
+          title: 'Удалить вопрос?',
+          icon: <ExclamationCircleOutlined />,
+          content: `"${text}" будет удалён, если на него ещё не отвечали пользователи. Иначе удалить не получится.`,
+          okText: 'Удалить',
+          cancelText: 'Отмена',
+          okButtonProps: { danger: true },
+          onOk: () => handleDeleteQuestion(questionId),
+        });
+      };
+
     // Функция для удаления вопроса
     const handleDeleteQuestion = async (questionId) => {
         try {
@@ -355,6 +373,8 @@ export default function CreateQuestions() {
                 navigate('/login');
             } else if (error.response?.status === 403) {
                 message.error('У вас нет прав на удаление этого вопроса');
+            } else if (error.response?.status === 409) {
+                message.error('Невозможно удалить вопрос, поскольку на него есть ответы пользователя');
             } else {
                 message.error(error.message || 'Ошибка при удалении вопроса. Попробуйте еще раз.');
             }
@@ -385,11 +405,9 @@ export default function CreateQuestions() {
 
             <Content style={{ padding: '24px', maxWidth: '1200px', margin: '0 auto', width: '100%' }}>
                 {loadingQuiz ? (
-                    <Card>
-                        <div style={{ textAlign: 'center', padding: '40px' }}>
-                            <Text>Загрузка...</Text>
-                        </div>
-                    </Card>
+                    <div style={{ textAlign: 'center', padding: '40px' }}>
+                        <Spin/>
+                    </div>
                 ) : (
                     <>
                         {/* Форма редактирования квиза */}
@@ -415,10 +433,9 @@ export default function CreateQuestions() {
                                                 onClick={(e) => {
                                                     e.stopPropagation();
                                                     quizForm.submit();
-                                                    navigate("/");
                                                 }}
                                             >
-                                                Сохранить и выйти
+                                                Сохранить
                                             </Button>
                                         </Col>
                                     </Row>
@@ -494,39 +511,29 @@ export default function CreateQuestions() {
                                             </Space>
                                         </Form.Item>
 
-                                        {/* Режим доступа */}
-                                        <Form.Item
-                                            name="accessMode"
-                                            label="Режим доступа"
-                                            rules={[
-                                                { required: true, message: 'Выберите режим доступа!' }
-                                            ]}
-                                        >
-                                            <Radio.Group>
-                                                <Space direction="vertical">
-                                                    <Radio value="public">
-                                                        <Space>
-                                                            <GlobalOutlined />
-                                                            <Text>Публичный</Text>
-                                                        </Space>
-                                                        <br />
-                                                        <Text type="secondary" style={{ fontSize: '12px', marginLeft: 24 }}>
-                                                            Квиз будет доступен всем пользователям
-                                                        </Text>
-                                                    </Radio>
-                                                    <Radio value="private">
-                                                        <Space>
-                                                            <LockOutlined />
-                                                            <Text>Приватный</Text>
-                                                        </Space>
-                                                        <br />
-                                                        <Text type="secondary" style={{ fontSize: '12px', marginLeft: 24 }}>
-                                                            Квиз будет доступен только по коду доступа
-                                                        </Text>
-                                                    </Radio>
+                                        {quiz.isPublic ? (
+                                            <Alert type="success" showIcon icon={<GlobalOutlined />}
+                                                title="Публичный квиз - все пользователи могут его пройти"
+                                                description={
+                                                <Space orientation="vertical" size={4}>
+                                                    <Text type="secondary">
+                                                     Доступ к квизу нельзя изменить после создания.
+                                                    </Text>
                                                 </Space>
-                                            </Radio.Group>
-                                        </Form.Item>
+                                                }
+                                            />
+                                            ) : (
+                                            <Alert type="warning" showIcon icon={<LockOutlined />}
+                                                title="Приватный квиз - могут пройти пользователи, знающие код доступа"
+                                                description={
+                                                <Space orientation="vertical" size={4}>
+                                                    <Text type="secondary">
+                                                    Доступ к квизу нельзя изменить после создания.
+                                                    </Text>
+                                                </Space>
+                                                }
+                                            />
+                                            )}
 
                                         {/* Категория (скрытое поле, если нужно) */}
                                         <Form.Item
@@ -747,22 +754,13 @@ export default function CreateQuestions() {
                                                                     >
                                                                         Редактировать
                                                                     </Button>
-                                                                    <Popconfirm
-                                                                        title="Удалить вопрос"
-                                                                        description="Вы уверены, что хотите удалить этот вопрос?"
-                                                                        onConfirm={() => handleDeleteQuestion(question.id)}
-                                                                        okText="Да"
-                                                                        cancelText="Нет"
-                                                                        okButtonProps={{ danger: true }}
-                                                                    >
-                                                                        <Button
-                                                                            type="primary"
-                                                                            danger
-                                                                            icon={<DeleteOutlined />}
-                                                                            size="middle"
-                                                                        >
-                                                                        </Button>
-                                                                    </Popconfirm>
+                                                                    <Button
+                                                                        type="primary"
+                                                                        danger
+                                                                        icon={<DeleteOutlined />}
+                                                                        size="middle"
+                                                                        onClick={() => handleDeleteWithConfirm(question.id, question.text)}
+                                                                    />
                                                                 </Space>
                                                             }
                                                         >
