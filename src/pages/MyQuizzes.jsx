@@ -10,6 +10,7 @@ import HeaderComponent from '../components/HeaderComponent';
 
 //Методы
 import { useUsers } from '../hooks/useUsers.jsx';
+import QuizCard from '../components/quizCard.jsx';
 
 const { Title } = Typography;
 

@@ -6,12 +6,31 @@ import { GetUserIdFromJWT } from './usersMethods';
  * @returns {Promise<Array>} - Массив квизов
  */
 export const getAllQuizzes = async () => {
-
   try {
     const response = await apiClient.get('/Quiz');
+    const quizzes = response.data;
 
-    console.log('Полученные квизы:', response.data);
-    return response.data;
+    // Для каждого квиза получаем количество вопросов
+    const quizzesWithQuestionsCount = await Promise.all(
+      quizzes.map(async (quiz) => {
+        try {
+          const questions = await getQuizQuestions(quiz.id);
+          return {
+            ...quiz,
+            questionsCount: questions?.length ?? 0,
+          };
+        } catch (e) {
+          console.warn(`Не удалось получить вопросы для квиза ${quiz.id}`, e);
+          return {
+            ...quiz,
+            questionsCount: 0,
+          };
+        }
+      })
+    );
+
+    console.log('Полученные квизы:', quizzesWithQuestionsCount);
+    return quizzesWithQuestionsCount;
 
   } catch (error) {
     console.error('Ошибка при получении квизов:', error);
@@ -86,8 +105,19 @@ export const getQuizById = async (id) => {
 
   try {
     const response = await apiClient.get(`/Quiz/${id}`);
-    console.log(`Получен квиз с ID ${id}:`, response.data);
-    return response.data;
+    const quiz = response.data;
+
+    // Получаем вопросы и считаем их количество
+    const questions = await getQuizQuestions(id);
+    const questionsCount = questions?.length ?? 0;
+
+    const result = {
+      ...quiz,
+      questionsCount,
+    };
+
+    console.log(`Получен квиз с ID ${id}:`, result);
+    return result;
 
   } catch (error) {
     if (error.response?.status === 404) {
@@ -99,6 +129,7 @@ export const getQuizById = async (id) => {
     throw error;
   }
 };
+
 
 /**
  * Удаляет квиз по ID

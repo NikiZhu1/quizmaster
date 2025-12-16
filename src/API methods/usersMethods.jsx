@@ -1,6 +1,7 @@
 import apiClient from './.APIclient';
 import { jwtDecode } from 'jwt-decode';
 import Cookies from 'js-cookie';
+import { getQuizQuestions } from './quizMethods.jsx'
 
 export const AuthenticateUser = async (values, isRegistration) => {
     try {
@@ -64,28 +65,6 @@ export const getUserByUsername = async (username) => {
     }
 };
 
-
-// // В useUsers.js обновите getUserInfo
-// export const getUserInfo = async (userId) => {
-//     if (!userId) return null;
-
-//     try {
-//         const userInfo = await apiClient.getUserInfo(userId);
-//         console.log('Информация о пользователе получена:', userInfo);
-//         return userInfo;
-//     } catch (err) {
-//         console.error('Ошибка получения пользователя:', err);
-        
-//         // Если ошибка 401 - токен истек
-//         if (err.response?.status === 401) {
-//             Cookies.remove('token');
-//             window.location.href = '/login';
-//         }
-        
-//         return null;
-//     }
-// };
-
 /**
  * Получает квизы пользователя
  * @param {string} token - Токен авторизации
@@ -106,9 +85,30 @@ export const getUserQuizzes = async (token, userId) => {
           'Authorization': `Bearer ${token}`
         }
       });
+
+      const quizzes = response.data;
+
+    // Для каждого квиза получаем количество вопросов
+    const quizzesWithQuestionsCount = await Promise.all(
+      quizzes.map(async (quiz) => {
+        try {
+          const questions = await getQuizQuestions(quiz.id);
+          return {
+            ...quiz,
+            questionsCount: questions?.length ?? 0,
+          };
+        } catch (e) {
+          console.warn(`Не удалось получить вопросы для квиза ${quiz.id}`, e);
+          return {
+            ...quiz,
+            questionsCount: 0,
+          };
+        }
+      })
+    );
   
-      console.log(`Успешно получены квизы ${userId}:`, response.data);
-      return response.data;
+      console.log(`Успешно получены квизы ${userId}:`, quizzesWithQuestionsCount);
+      return quizzesWithQuestionsCount;
     } catch (err) {
       console.error('Ошибка при получении квизов пользователя:', err);
       throw err;

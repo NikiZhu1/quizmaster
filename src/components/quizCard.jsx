@@ -13,11 +13,11 @@ function QuizCard({ quiz }) {
 
     useEffect(() => {
         loadAuthorInfo();
-    }, [quiz.authorId]); // Используем authorId вместо userId
+    }, [quiz.authorId]);
 
     const loadAuthorInfo = async () => {
         // Используем authorId из данных квиза
-        const authorId = quiz.authorId || quiz.userId;
+        const authorId = quiz.authorId;
         
         if (!authorId) {
             setAuthorName('Неизвестный автор');
