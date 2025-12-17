@@ -61,22 +61,12 @@ export const useQuizes = () => {
         }
     };
 
-    // В методе getQuizById в useQuizes.jsx добавьте:
-    const getQuizById = async (id) => {
+    const getQuizById = async (id, token) => {
         setLoading(true);
         setError(null);
 
         try {
-            const quizData = await api.getQuizById(id);
-            
-            // Если нужно, можно получить количество вопросов отдельно
-            try {
-                const questions = await api.getQuizQuestions(id);
-                quizData.questionsCount = questions?.length || 0;
-            } catch (questionsError) {
-                console.error('Не удалось получить количество вопросов:', questionsError);
-                quizData.questionsCount = 0;
-            }
+            const quizData = await api.getQuizById(id, token);
             
             return quizData;
         } catch (err) {
@@ -86,20 +76,6 @@ export const useQuizes = () => {
             setLoading(false);
         }
     };
-    // const getQuizById = async (id) => {
-    //     setLoading(true);
-    //     setError(null);
-
-    //     try {
-    //         const quizzesData = await api.getQuizById(id);
-            
-    //         return quizzesData;
-    //     } catch (err) {
-    //         setError(err);
-    //     } finally {
-    //         setLoading(false);
-    //     }
-    // };
 
     const createQuiz = async (id, token, UpdatedQuizData) => {
         setLoading(true);

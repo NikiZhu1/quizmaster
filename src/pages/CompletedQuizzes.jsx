@@ -151,7 +151,7 @@ export default function CompletedQuizzes() {
             const bestAttemptsWithQuizInfo = await Promise.all(
                 bestAttemptsData.map(async (attempt) => {
                     try {
-                        const quizInfo = await quizApi.getQuizById(attempt.quizId);
+                        const quizInfo = await quizApi.getQuizById(attempt.quizId, token);
                         return { ...attempt, quizInfo };
                     } catch (err) {
                         console.error(`Ошибка загрузки квиза ${attempt.quizId}:`, err);

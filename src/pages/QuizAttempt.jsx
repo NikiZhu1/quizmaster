@@ -9,8 +9,11 @@ import {
     QuestionCircleOutlined, CheckCircleOutlined,
     RightOutlined, CheckOutlined, SaveOutlined
 } from '@ant-design/icons';
+import Cookies from 'js-cookie';
+
 import { useQuizAttempt } from '../hooks/useQuizAttempt';
 import HeaderComponent from '../components/HeaderComponent';
+import { useQuizes } from '../hooks/useQuizes';
 
 const { Header, Content, Sider } = Layout;
 const { Title, Text, Paragraph } = Typography;
@@ -18,6 +21,7 @@ const { Title, Text, Paragraph } = Typography;
 export default function QuizAttempt() {
     const { quizId } = useParams();
     const navigate = useNavigate();
+    const { getQuizById } = useQuizes();
     
     const {
         attempt,
@@ -50,7 +54,10 @@ export default function QuizAttempt() {
     useEffect(() => {
         const startAttempt = async () => {
             try {
-                await startQuizAttempt(quizId);
+                const token = Cookies.get('token');
+                const quiz = await getQuizById(quizId, token);
+                console.log("квиз", quiz)
+                await startQuizAttempt(quizId, quiz.privateAccessKey);
             } catch (err) {
                 console.error('Ошибка начала попытки:', err);
                 setTimeout(() => navigate('/'), 2000);

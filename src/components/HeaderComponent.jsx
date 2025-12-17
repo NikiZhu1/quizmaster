@@ -1,20 +1,16 @@
 import React, { useState, useEffect } from 'react';
 import { Layout, Flex, Button, Avatar, Dropdown, Space, Typography } from 'antd';
 import { 
-    HomeOutlined, UserOutlined, LoginOutlined, LogoutOutlined, SettingOutlined,
-    FileTextOutlined, TrophyOutlined
+    HomeOutlined, FileTextOutlined, TrophyOutlined
 } from '@ant-design/icons';
 import { useNavigate, useLocation } from 'react-router-dom';
 import Cookies from 'js-cookie';
-import { jwtDecode } from 'jwt-decode';
 
 // Методы
-import { useUsers } from '../hooks/useUsers.jsx';
-// Импортируем модальное окно профиля
-import ProfileModal from './ProfileModal';
+import { useUsers } from '../hooks/useUsers.jsx'; 
+import UserInfo from './UserInfo.jsx';
 
 const { Header } = Layout;
-const { Text } = Typography;
 
 const HeaderStyle = {
   backgroundColor: '#fff',
@@ -30,16 +26,14 @@ const HeaderStyle = {
 const HeaderComponent = () => {
   const navigate = useNavigate();
   const location = useLocation();
-  const { GetUserIdFromJWT, getUserInfo, logoutUser, userPicture } = useUsers();
   const [isAuthenticated, setIsAuthenticated] = useState(false);
-  const [userName, setUserName] = useState('');
-  const [userId, setUserId] = useState(null);
   const [activeTab, setActiveTab] = useState('home');
-  const [profileModalVisible, setProfileModalVisible] = useState(false);
 
   // Проверяем наличие токена и декодируем его при загрузке
   useEffect(() => {
-    checkAuthentication();
+     const token = Cookies.get('token');
+     if (token)
+      setIsAuthenticated(true);
   }, []);
 
   // Определяем активную вкладку на основе текущего пути
@@ -55,74 +49,6 @@ const HeaderComponent = () => {
       setActiveTab('');
     }
   }, [location.pathname]);
-
-  const checkAuthentication = async () => {
-    const token = Cookies.get('token');
-    
-    if (token) {
-      try {
-        const decoded = jwtDecode(token);
-        setIsAuthenticated(true);
-        const userid = GetUserIdFromJWT(token);
-        const user = await getUserInfo(userid);
-  
-        setUserName(user.name || user.userName || 'Пользователь');
-        setUserId(user.id);
-      } catch (error) {
-        console.error('Ошибка декодирования токена:', error);
-        handleLogout();
-      }
-    } else {
-      setIsAuthenticated(false);
-      setUserName('');
-      setUserId(null);
-    }
-  };
-
-  const handleLogin = () => {
-    navigate('/login');
-  };
-
-  const handleLogout = () => {
-    logoutUser();
-    setIsAuthenticated(false);
-    setUserName('');
-    setUserId(null);
-    navigate('/');
-  };
-
-  // Функция обновления данных пользователя после изменения профиля
-  const handleUpdateUser = (updatedData) => {
-    if (updatedData.userName) {
-      setUserName(updatedData.userName);
-    }
-  };
-
-  // Меню для авторизованного пользователя (обновлено)
-  const userMenuItems = [
-    {
-      key: 'profile',
-      icon: <UserOutlined />,
-      label: 'Профиль',
-      onClick: () => setProfileModalVisible(true)
-    },
-    {
-      key: 'settings',
-      icon: <SettingOutlined />,
-      label: 'Настройки',
-      onClick: () => navigate('/settings')
-    },
-    {
-      type: 'divider',
-    },
-    {
-      key: 'logout',
-      icon: <LogoutOutlined />,
-      label: 'Выйти',
-      danger: true,
-      onClick: handleLogout
-    },
-  ];
 
   // Стили для активной вкладки
   const getTabStyle = (key) => ({
@@ -192,40 +118,11 @@ const HeaderComponent = () => {
             </Space>
           </Space>
           
-          {isAuthenticated ? (
-            <Dropdown menu={{ items: userMenuItems }} placement="bottomRight" arrow>
-              <Space style={{ cursor: 'pointer', padding: '0 8px' }}>
-                <Avatar 
-                  icon={<UserOutlined />}
-                  style={{ 
-                    backgroundColor: '#1890ff',
-                    color: '#fff'
-                  }}
-                  src={userId ? userPicture(userId) : null}
-                />
-                <Text strong>{userName}</Text>
-              </Space>
-            </Dropdown>
-          ) : (
-            <Button 
-              type="primary" 
-              icon={<LoginOutlined />}
-              onClick={handleLogin}
-            >
-              Войти
-            </Button>
-          )}
+          {/* Кнопка пользователя */}
+          <UserInfo/>
+
         </Flex>
       </Header>
-
-      {/* Модальное окно профиля */}
-      <ProfileModal
-        visible={profileModalVisible}
-        onClose={() => setProfileModalVisible(false)}
-        userId={userId}
-        userName={userName}
-        onUpdateUser={handleUpdateUser}
-      />
     </>
   );
 };

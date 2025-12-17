@@ -39,10 +39,11 @@ export const useQuizAttempt = () => {
   const startQuizAttempt = async (quizId, accessKey = null) => {
     setLoading(true);
     setError(null);
-    
+
+    const token = Cookies.get('token');
     try {
       // Начинаем попытку
-      const attemptData = await api.startAttempt(quizId);
+      const attemptData = await api.startAttempt(token, quizId, accessKey);
       setAttempt(attemptData);
       
       // Сохраняем guestSessionId если есть
@@ -51,7 +52,7 @@ export const useQuizAttempt = () => {
       }
       
       // Получаем информацию о квизе (чтобы узнать timeLimit)
-      const quizData = await quizApi.getQuizById(quizId);
+      const quizData = await quizApi.getQuizById(quizId, token);
       setQuizInfo(quizData);
       
       // Получаем вопросы квиза

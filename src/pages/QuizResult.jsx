@@ -16,11 +16,13 @@ import {
     UserOutlined
 } from '@ant-design/icons';
 import * as api from '../API methods/attemptMethods.jsx';
+import Cookies from 'js-cookie';
 
 import HeaderComponent from '../components/HeaderComponent.jsx';
 import { useQuizes } from '../hooks/useQuizes.jsx';
 import { useQuestions } from '../hooks/useQuestions.jsx';
 import { useUsers } from '../hooks/useUsers.jsx';
+import { useQuizAttempt } from '../hooks/useQuizAttempt.jsx';
 
 const { Title, Text, Paragraph } = Typography;
 
@@ -43,6 +45,8 @@ export default function QuizResult() {
     useEffect(() => {
         const loadResult = async () => {
             try {
+                const token = Cookies.get('token');
+
                 // 1. Загружаем попытку
                 const attemptData = await api.getAttemptById(attemptId);
                 console.log('Данные попытки:', attemptData);
@@ -76,11 +80,11 @@ export default function QuizResult() {
                 // 3. Загружаем информацию о квизе и вопросы
                 if (attemptData.quizId) {
                     try {
-                        const quizData = await getQuizById(attemptData.quizId);
+                        const quizData = await getQuizById(attemptData.quizId, token);
                         setQuizInfo(quizData);
                         
                         // 4. Загружаем вопросы квиза (без правильных ответов)
-                        const questionsData = await getQuizQuestions(attemptData.quizId);
+                        const questionsData = await getQuizQuestions(attemptData.quizId, quizData.privateAccessKey);
                         setQuestions(questionsData);
                         console.log('Загружены вопросы:', questionsData);
                         
@@ -320,15 +324,6 @@ export default function QuizResult() {
         return '#ff4d4f';
     };
 
-    // Функция для получения текста оценки
-    const getGradeText = (percent) => {
-        if (percent >= 90) return 'Отлично! 🎉';
-        if (percent >= 75) return 'Хорошо! 👍';
-        if (percent >= 60) return 'Удовлетворительно ✅';
-        if (percent >= 40) return 'Плохо 😕';
-        return 'Очень плохо 😢';
-    };
-
     // Функция для получения иконки статуса
     const getStatusIcon = (status) => {
         switch (status) {
@@ -398,7 +393,7 @@ export default function QuizResult() {
                 <HeaderComponent />
                 <div style={{ padding: 24, maxWidth: 800, margin: '0 auto' }}>
                     <Alert
-                        message="Ошибка"
+                        title="Ошибка"
                         description={error || "Не удалось загрузить результаты"}
                         type="error"
                         showIcon

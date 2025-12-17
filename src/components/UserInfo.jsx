@@ -1,22 +1,78 @@
-import React from 'react';
-import { Avatar, Dropdown, Space, Typography } from 'antd';
-import { UserOutlined, SettingOutlined, LogoutOutlined } from '@ant-design/icons';
+import React, { useState, useEffect } from 'react';
+import { Avatar, Dropdown, Space, Typography, Button } from 'antd';
+import { UserOutlined, SettingOutlined, LogoutOutlined, LoginOutlined, KeyOutlined } from '@ant-design/icons';
+import { useNavigate, useLocation } from 'react-router-dom';
+import Cookies from 'js-cookie';
 
+import { useUsers } from '../hooks/useUsers.jsx';
+import ProfileModal from './ProfileModal.jsx';
 const { Text } = Typography;
 
-const UserInfo = ({ userId, userName }) => {
-  const items = [
+const UserInfo = () => {
+  const navigate = useNavigate();
+  const { GetUserIdFromJWT, getUserInfo, logoutUser, userPicture } = useUsers();
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [userName, setUserName] = useState('');
+  const [userId, setUserId] = useState(null);
+  const [profileModalVisible, setProfileModalVisible] = useState(false);
+
+  useEffect(() => {
+    checkAuthentication();
+  }, []);
+
+  const checkAuthentication = async () => {
+    const token = Cookies.get('token');
+    
+    if (token) {
+      try {
+        setIsAuthenticated(true);
+        const userid = GetUserIdFromJWT(token);
+        const user = await getUserInfo(userid);
+  
+        setUserName(user.name || 'Пользователь');
+        setUserId(user.id);
+      } catch (error) {
+        console.error('Ошибка декодирования токена:', error);
+        handleLogout();
+      }
+    } else {
+      setIsAuthenticated(false);
+      setUserName('');
+      setUserId(null);
+    }
+  };
+
+  const handleLogin = () => {
+    navigate('/login');
+  };
+
+  const handleLogout = () => {
+    logoutUser();
+    setIsAuthenticated(false);
+    setUserName('');
+    setUserId(null);
+    navigate('/');
+  };
+
+  // Функция обновления данных пользователя после изменения профиля
+  const handleUpdateUser = (updatedData) => {
+    if (updatedData.userName) {
+      setUserName(updatedData.userName);
+    }
+  };
+
+  const userMenuItems = [
     {
       key: 'profile',
       icon: <UserOutlined />,
-      label: 'Профиль',
-      onClick: () => console.log('Переход в профиль')
+      label: 'Настройки профиля',
+      onClick: () => setProfileModalVisible(true)
     },
     {
       key: 'settings',
-      icon: <SettingOutlined />,
-      label: 'Настройки',
-      onClick: () => console.log('Переход в настройки')
+      icon: <KeyOutlined />,
+      label: 'Ввести ключ приватного квиза',
+      onClick: () => navigate('/settings')
     },
     {
       type: 'divider',
@@ -26,24 +82,46 @@ const UserInfo = ({ userId, userName }) => {
       icon: <LogoutOutlined />,
       label: 'Выйти',
       danger: true,
-      onClick: () => {
-        console.log('Выход из системы');
-        // localStorage.removeItem('token');
-        // window.location.href = '/login';
-      }
+      onClick: handleLogout
     },
   ];
 
   return (
-    <Dropdown menu={{ items }} placement="bottomRight" arrow>
+    <>
+    {isAuthenticated ? (
+      <Dropdown menu={{ items: userMenuItems }} placement="bottomRight" arrow>
       <Space style={{ cursor: 'pointer', padding: '0 8px' }}>
         <Avatar 
           icon={<UserOutlined />}
-          style={{ backgroundColor: '#87d068' }}
+          style={{ 
+            backgroundColor: '#1890ff',
+            color: '#fff'
+          }}
+          src={userId ? userPicture(userId) : null}
         />
-        <Text strong>{userName || 'Пользователь'}</Text>
+        <Text strong>{userName}</Text>
       </Space>
     </Dropdown>
+    ) : (
+      <Button 
+        type="primary" 
+        icon={<LoginOutlined />}
+        onClick={handleLogin}
+      >
+        Войти
+      </Button>
+    )}
+
+    {/* Модальное окно профиля */}
+    <ProfileModal
+        visible={profileModalVisible}
+        onClose={() => setProfileModalVisible(false)}
+        userId={userId}
+        userName={userName}
+        onUpdateUser={handleUpdateUser}
+      />
+  </>
+    
   );
 };
 

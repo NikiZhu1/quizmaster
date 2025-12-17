@@ -7,7 +7,8 @@ import {
 import { 
     ClockCircleOutlined, UserOutlined, QuestionCircleOutlined,
     TrophyOutlined, PlayCircleOutlined, ArrowLeftOutlined,
-    CrownOutlined, TeamOutlined, LoadingOutlined 
+    CrownOutlined, TeamOutlined, LoadingOutlined, 
+    CopyOutlined
 } from '@ant-design/icons';
 import { useParams, useNavigate } from 'react-router-dom';
 import Cookies from 'js-cookie';
@@ -68,7 +69,8 @@ const QuizDetail = () => {
         setLoading(true);
         try {
             // Загружаем информацию о квизе
-            const quizData = await getQuizById(parseInt(quizId));
+            const token = Cookies.get('token');
+            const quizData = await getQuizById(quizId, token);
             console.log('Данные квиза:', quizData);
             setQuiz(quizData);
             
@@ -137,23 +139,28 @@ const QuizDetail = () => {
         }
     };
 
-    const formatDate = (dateString) => {
-        if (!dateString) return 'Недавно';
+    // const formatDate = (dateString) => {
+    //     if (!dateString) return 'Недавно';
         
-        try {
-            const date = new Date(dateString);
-            return date.toLocaleDateString('ru-RU', {
-                year: 'numeric',
-                month: 'short',
-                day: 'numeric',
-                hour: '2-digit',
-                minute: '2-digit'
-            });
-        } catch (error) {
-            console.error('Ошибка форматирования даты:', error);
-            return dateString;
-        }
-    };
+    //     try {
+    //         const date = new Date(dateString);
+    //         return date.toLocaleDateString('ru-RU', {
+    //             year: 'numeric',
+    //             month: 'short',
+    //             day: 'numeric',
+    //             hour: '2-digit',
+    //             minute: '2-digit'
+    //         });
+    //     } catch (error) {
+    //         console.error('Ошибка форматирования даты:', error);
+    //         return dateString;
+    //     }
+    // };
+
+    const handleCopy = async (text) => {
+        await navigator.clipboard.writeText(text);
+        message.success('Текст скопирован');
+      };
 
     // Столбцы для таблицы лидерборда
     const leaderboardColumns = [
@@ -301,16 +308,15 @@ const QuizDetail = () => {
                     <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
                         <div>
                             <Space orientation="vertical" size="middle" style={{ width: '100%' }}>
-                                <Flex justify='space-between'>
+                                <Flex justify='space-between' wrap gap='middle'>
                                     <Title level={2} style={{ margin: 0 }}>
                                         {quiz.title}
                                     </Title>
-                                    {!quiz.isDeleted && <Button
+                                    {/* {!quiz.isDeleted && <Button
                                         type="primary"
                                         size="large"
                                         icon={<PlayCircleOutlined />}
                                         onClick={handleStartQuiz}
-                                        disabled={!quiz.isPublic}
                                         style={{ 
                                             // height: '56px', 
                                             // padding: '0 48px',
@@ -319,7 +325,7 @@ const QuizDetail = () => {
                                         }}
                                     >
                                         Начать прохождение
-                                    </Button>}
+                                    </Button>} */}
                                 </Flex>
                                 
                                 {quiz.isDeleted && 
@@ -358,6 +364,21 @@ const QuizDetail = () => {
                                 </div>}
                             </Space>
                         </div>
+
+                        {!quiz.isDeleted && <Button
+                                type="primary"
+                                size="large"
+                                icon={<PlayCircleOutlined />}
+                                onClick={handleStartQuiz}
+                                style={{ 
+                                    // height: '56px', 
+                                    // padding: '0 48px',
+                                    // fontSize: '18px',
+                                    boxShadow: '0 4px 12px rgba(24, 144, 255, 0.4)'
+                                }}
+                            >
+                                Начать прохождение
+                            </Button>}
                         
                         <Row gutter={[16, 16]}>
 
@@ -412,12 +433,17 @@ const QuizDetail = () => {
                                             Количество вопросов
                                         </Text>
                                         <Space align='baseline' style={{ justifyContent: 'left', width: '100%' }}>
+
+                                            {quiz.questionsCount !== 0 ? <>
                                             <Text strong style={{ fontSize: '24px' }}>
-                                                {quiz.questionsCount || '?'}
+                                                {quiz.questionsCount}
                                             </Text>
                                             <Text style={{ fontSize: '14px' }}>
                                                 вопрос{pluralize(quiz.questionsCount)}
-                                            </Text>
+                                            </Text></> 
+                                            : <Text style={{ fontSize: '18px' }}>
+                                                Нет вопросов
+                                            </Text>}
                                         </Space>
                                     </Space>
                                 </Card>

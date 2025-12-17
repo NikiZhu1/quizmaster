@@ -14,7 +14,7 @@ export const getAllQuizzes = async () => {
     const quizzesWithQuestionsCount = await Promise.all(
       quizzes.map(async (quiz) => {
         try {
-          const questions = await getQuizQuestions(quiz.id);
+          const questions = await getQuizQuestions(quiz.id, quiz.privateAccessKey);
           return {
             ...quiz,
             questionsCount: questions?.length ?? 0,
@@ -96,19 +96,24 @@ export const createQuiz = async (token, quizData) => {
 /**
  * Получает квиз по его ID
  * @param {number} id - ID квиза
+ * @param {string} token - Токен пользователя
  * @returns {Promise<Object>} - Объект квиза
  */
-export const getQuizById = async (id) => {
+export const getQuizById = async (id, token = null) => {
   if (!id || id <= 0) {
     throw new Error('Неверный ID квиза');
   }
 
   try {
-    const response = await apiClient.get(`/Quiz/${id}`);
+    const response = await apiClient.get(`/Quiz/${id}`, {
+      headers: {
+        'Authorization': `Bearer ${token}`
+      }
+    });
     const quiz = response.data;
 
     // Получаем вопросы и считаем их количество
-    const questions = await getQuizQuestions(id);
+    const questions = await getQuizQuestions(id, quiz.privateAccessKey);
     const questionsCount = questions?.length ?? 0;
 
     const result = {

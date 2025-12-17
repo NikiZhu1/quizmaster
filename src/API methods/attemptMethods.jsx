@@ -7,12 +7,17 @@ import { GetUserIdFromJWT } from './usersMethods';
  * @param {number} quizId - ID квиза
  * @returns {Promise<Object>} - Объект попытки
  */
-export const startAttempt = async (quizId) => {
-  const token = Cookies.get('token');
-  
+export const startAttempt = async (token, quizId, accessKey = null) => {
+  // Формируем URL с учётом accessKey
+  const url = accessKey
+  ? `/attempt/${quizId}/start?accessKey=${accessKey}`
+  : `/attempt/${quizId}/start`;
+
   try {
-    const response = await apiClient.post(`/attempt/${quizId}/start`, {}, {
-      headers: token ? { Authorization: `Bearer ${token}` } : {}
+    const response = await apiClient.post(url, {}, {
+      headers: {
+        'Authorization': `Bearer ${token}`
+      }
     });
     return response.data;
   } catch (error) {

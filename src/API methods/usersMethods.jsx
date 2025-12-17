@@ -92,7 +92,7 @@ export const getUserQuizzes = async (token, userId) => {
     const quizzesWithQuestionsCount = await Promise.all(
       quizzes.map(async (quiz) => {
         try {
-          const questions = await getQuizQuestions(quiz.id);
+          const questions = await getQuizQuestions(quiz.id, quiz.privateAccessKey); 
           return {
             ...quiz,
             questionsCount: questions?.length ?? 0,

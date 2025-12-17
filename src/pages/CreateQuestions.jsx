@@ -55,7 +55,8 @@ export default function CreateQuestions() {
     const loadQuizData = async () => {
         try {
             setLoadingQuiz(true);
-            const quizData = await getQuizById(quizId);
+            const token = Cookies.get('token');
+            const quizData = await getQuizById(quizId, token);
             setQuiz(quizData);
 
             // Устанавливаем значения в форму редактирования
@@ -77,7 +78,7 @@ export default function CreateQuestions() {
 
             // Загружаем существующие вопросы
             try {
-                const questionsData = await getQuizQuestions(quizId);
+                const questionsData = await getQuizQuestions(quizId, quizData.privateAccessKey);
                 setQuestions(questionsData || []);
             } catch (error) {
                 console.error('Ошибка при загрузке вопросов:', error);
@@ -86,7 +87,7 @@ export default function CreateQuestions() {
         } catch (error) {
             console.error('Ошибка при загрузке квиза:', error);
             message.error('Не удалось загрузить данные квиза');
-            navigate('/');
+            // navigate('/');
         } finally {
             setLoadingQuiz(false);
         }
@@ -360,8 +361,14 @@ export default function CreateQuestions() {
                 return;
             }
 
-            await deleteQuestion(questionId, token);
-            message.success('Вопрос успешно удален!');
+            const response = await deleteQuestion(questionId, token);
+            // Проверяем ответ от сервера
+            if (response?.status !== 200) {
+                message.error('Невозможно удалить вопрос, поскольку на него есть ответы пользователя');
+                return;
+            }
+            else
+                message.success('Вопрос успешно удален!');
             
             // Обновляем список вопросов
             await loadQuizData();
@@ -398,6 +405,43 @@ export default function CreateQuestions() {
         [newQuestions[index], newQuestions[index + 1]] = [newQuestions[index + 1], newQuestions[index]];
         setQuestions(newQuestions);
     };
+
+    if (!loadingEdit && !quiz) {
+        return (
+            <Layout>
+                <HeaderComponent />
+                <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '60vh' }}>
+                    <Spin size="large" tip="Загрузка информации о квизе..." />
+                </div>
+            </Layout>
+        );
+    }
+
+    if (!quiz && !loadingQuiz) {
+        return (
+            <Layout>
+                <HeaderComponent />
+                <div style={{ padding: '40px', maxWidth: '800px', margin: '0 auto' }}>
+                    <Alert
+                        title="Квиз не найден"
+                        description="Возможно, квиз был удален или у вас нет к нему доступа. Проверьте, правильно ли указан URL или вернитесь на главную страницу."
+                        type="error"
+                        showIcon
+                        action={
+                            <Space orientation="vertical">
+                                <Button type="primary" onClick={() => navigate('/')}>
+                                    На главную
+                                </Button>
+                                <Button onClick={() => window.location.reload()}>
+                                    Обновить страницу
+                                </Button>
+                            </Space>
+                        }
+                    />
+                </div>
+            </Layout>
+        );
+    }
 
     if (quiz?.isDeleted) {
         return (

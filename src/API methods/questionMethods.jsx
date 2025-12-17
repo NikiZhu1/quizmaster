@@ -299,10 +299,14 @@ export const deleteQuestion = async (id, token = null) => {
     
     const response = await apiClient.delete(`/Question/${id}`, { headers });
     console.log(`Вопрос ${id} успешно удален`);
-    return response.data || 'Вопрос успешно удален';
+    return response;
   } catch (error) {
     console.error(`Ошибка при удалении вопроса ${id}:`, error);
     
+    if (error.response?.status === 409) {
+      throw new Error('Невозможно удалить вопрос, поскольку на него есть ответы пользователя');
+    }
+
     if (error.response?.status === 403) {
       throw new Error('У вас нет прав на удаление этого вопроса');
     }

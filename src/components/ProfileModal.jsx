@@ -1,13 +1,15 @@
 import React, { useState, useEffect } from 'react';
 import { 
     Modal, Form, Input, Button, message, Avatar, Space, 
-    Typography, Divider, Alert, Tabs, Card
+    Typography, Divider, Alert, Tabs, Card,
+    Flex
 } from 'antd';
 import { 
     UserOutlined, LockOutlined, SaveOutlined, 
     CheckCircleOutlined, KeyOutlined, SafetyOutlined,
     CloseOutlined
 } from '@ant-design/icons';
+import { useNavigate, useLocation } from 'react-router-dom';
 import Cookies from 'js-cookie';
 import apiClient from '../API methods/.APIclient';
 import { updateUserProfile } from '../API methods/usersMethods';
@@ -22,6 +24,7 @@ const ProfileModal = ({
     userName, 
     onUpdateUser 
 }) => {
+    const navigate = useNavigate();
     const [form] = Form.useForm();
     const [passwordForm] = Form.useForm();
     const [loading, setLoading] = useState(false);
@@ -145,28 +148,33 @@ const ProfileModal = ({
 
     // Обработчик изменения пароля с проверкой старого пароля
     const handlePasswordChange = async (values) => {
+        console.log('handlePasswordChange вызван с значениями:', values);
         setPasswordLoading(true);
         try {
             const token = Cookies.get('token');
             if (!token) {
                 message.error('Требуется авторизация');
+                setPasswordLoading(false);
                 return;
             }
 
             // Проверяем обязательные поля
             if (!values.oldPassword) {
                 message.error('Введите текущий пароль');
+                setPasswordLoading(false);
                 return;
             }
 
             if (!values.newPassword || values.newPassword.length < 6) {
                 message.error('Новый пароль должен содержать минимум 6 символов');
+                setPasswordLoading(false);
                 return;
             }
 
             // Проверяем, что новый пароль отличается от старого
             if (values.oldPassword === values.newPassword) {
                 message.error('Новый пароль должен отличаться от старого');
+                setPasswordLoading(false);
                 return;
             }
 
@@ -191,10 +199,10 @@ const ProfileModal = ({
             
             // Рекомендуется выйти пользователя после смены пароля
             setTimeout(() => {
-                message.info('Для безопасности, пожалуйста, войдите с новым паролем.');
+                // message.info('Для безопасности, пожалуйста, войдите с новым паролем.');
                 Cookies.remove('token');
-                window.location.href = '/login';
-            }, 1000);
+                navigate('/login');
+            }, 100);
 
         } catch (error) {
             console.error('Ошибка смены пароля:', error);
@@ -250,11 +258,17 @@ const ProfileModal = ({
     // Проверка, что новый пароль отличается от старого
     const validateNewPasswordDifferent = ({ getFieldValue }) => ({
         validator(_, value) {
-            const oldPassword = getFieldValue('oldPassword');
-            if (!oldPassword || !value || oldPassword !== value) {
+            if (!value) {
                 return Promise.resolve();
             }
-            return Promise.reject(new Error('Новый пароль должен отличаться от старого'));
+            const oldPassword = getFieldValue('oldPassword');
+            if (!oldPassword) {
+                return Promise.resolve();
+            }
+            if (oldPassword === value) {
+                return Promise.reject(new Error('Новый пароль должен отличаться от старого'));
+            }
+            return Promise.resolve();
         },
     });
 
@@ -290,7 +304,7 @@ const ProfileModal = ({
             footer={null}
             width={600}
             centered
-            destroyOnClose
+            destroyOnHidden
             maskClosable={false}
         >
             <div style={{ padding: '10px 0' }}>
@@ -331,23 +345,23 @@ const ProfileModal = ({
                     onChange={setActiveTab}
                     centered
                     style={{ marginBottom: 20 }}
-                    destroyInactiveTabPane={true}
+                    destroyOnHidden={true}
                 >
                     <TabPane 
                         tab={
-                            <span>
+                            <Flex gap='6px'>
                                 <UserOutlined />
                                 Профиль
-                            </span>
+                            </Flex>
                         } 
                         key="profile"
                     />
                     <TabPane 
                         tab={
-                            <span>
-                                <KeyOutlined />
+                            <Flex gap='6px'>
+                                <LockOutlined />
                                 Безопасность
-                            </span>
+                            </Flex>
                         } 
                         key="security"
                     />
@@ -380,7 +394,7 @@ const ProfileModal = ({
                         </Form.Item>
 
                         <Alert
-                            message="Информация"
+                            title="Информация"
                             description="После изменения никнейма вы будете отображаться с новым именем во всех квизах и результатах."
                             type="info"
                             showIcon
@@ -414,6 +428,10 @@ const ProfileModal = ({
                         form={passwordForm}
                         layout="vertical"
                         onFinish={handlePasswordChange}
+                        onFinishFailed={(errorInfo) => {
+                            console.log('Ошибка валидации формы пароля:', errorInfo);
+                            message.error('Пожалуйста, заполните все поля корректно');
+                        }}
                     >
                         <Form.Item
                             label="Текущий пароль"
@@ -434,10 +452,10 @@ const ProfileModal = ({
                         <Form.Item
                             label="Новый пароль"
                             name="newPassword"
+                            dependencies={['oldPassword']}
                             rules={[
                                 { required: true, message: 'Введите новый пароль' },
-                                { validator: validatePassword },
-                                { validator: validateNewPasswordDifferent }
+                                { validator: validatePassword }
                             ]}
                         >
                             <Input.Password 
@@ -464,17 +482,12 @@ const ProfileModal = ({
                         </Form.Item>
 
                         <Alert
-                            message="Требования к паролю"
-                            description="Пароль должен содержать минимум 6 символов. Рекомендуем использовать комбинацию букв, цифр и специальных символов."
+                            title="Информация"
+                            description={<>
+                                <p style={{marginBottom: 0}}>Пароль должен содержать минимум 6 символов. Рекомендуем использовать комбинацию букв, цифр и специальных символов.</p>
+                                <p style={{marginBottom: 0}}>После успешной смены пароля вы будете перенаправлены на страницу входа для повторной авторизации.</p></>
+                            }
                             type="info"
-                            showIcon
-                            style={{ marginBottom: 20 }}
-                        />
-
-                        <Alert
-                            message="Важная информация"
-                            description="После успешной смены пароля вы будете перенаправлены на страницу входа для повторной авторизации."
-                            type="warning"
                             showIcon
                             style={{ marginBottom: 20 }}
                         />
