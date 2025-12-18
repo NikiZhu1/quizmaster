@@ -3,6 +3,7 @@ import { Card, Typography, Tag, Space, Skeleton } from 'antd';
 import { ClockCircleOutlined, UserOutlined, QuestionCircleOutlined } from '@ant-design/icons';
 import { useNavigate } from 'react-router-dom';
 import { getUserInfo } from '../API methods/usersMethods';
+import { getCategoryName, getCategoryColor } from '../utils/categoryUtils';
 
 const { Text, Paragraph, Title } = Typography;
 
@@ -16,7 +17,6 @@ function QuizCard({ quiz }) {
     }, [quiz.authorId]);
 
     const loadAuthorInfo = async () => {
-        // Используем authorId из данных квиза
         const authorId = quiz.authorId;
         
         if (!authorId) {
@@ -81,6 +81,49 @@ function QuizCard({ quiz }) {
             </Tag>
         );
     };
+
+    const getCategoryDisplay = () => {
+        // Проверяем наличие категории в данных квиза
+        const categoryValue = quiz.category !== undefined && quiz.category !== null 
+            ? quiz.category 
+            : (quiz.categoryId !== undefined && quiz.categoryId !== null 
+                ? quiz.categoryId 
+                : null);
+        
+        if (categoryValue === null || categoryValue === undefined) return null;
+        
+        // // Проверяем, что это допустимое значение категории
+        // const validCategories = [0, 1, 2, 3, 4, 5, 7];
+        // if (!validCategories.includes(categoryValue)) return null;
+        
+        return (
+            <Tag 
+                color={getCategoryColor(categoryValue)}
+                style={{ margin: 0, fontSize: '12px' }}
+            >
+                {getCategoryName(categoryValue)}
+            </Tag>
+        );
+    };
+    // const getCategoryDisplay = () => {
+    //     // Проверяем наличие категории в данных квиза
+    //     const categoryValue = quiz.category !== undefined && quiz.category !== null 
+    //         ? quiz.category 
+    //         : (quiz.categoryId !== undefined && quiz.categoryId !== null 
+    //             ? quiz.categoryId 
+    //             : null);
+        
+    //     if (categoryValue === null) return null;
+        
+    //     return (
+    //         <Tag 
+    //             color={getCategoryColor(categoryValue)}
+    //             style={{ margin: 0, fontSize: '12px' }}
+    //         >
+    //             {getCategoryName(categoryValue)}
+    //         </Tag>
+    //     );
+    // };
 
     return (
         <Card
@@ -150,18 +193,25 @@ function QuizCard({ quiz }) {
                     marginTop: 'auto', 
                     display: 'flex', 
                     justifyContent: 'space-between', 
-                    alignItems: 'center' 
+                    alignItems: 'center',
+                    flexWrap: 'wrap',
+                    gap: 4
                 }}>
                     {/* Количество вопросов */}
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 4, minWidth: '100px' }}>
                         <QuestionCircleOutlined style={{ fontSize: '12px', color: '#8c8c8c' }} />
                         <Text type="secondary" style={{ fontSize: '12px' }}>
                             {quiz.questionsCount || '?'} вопросов
                         </Text>
                     </div>
                     
-                    {/* Ограничение по времени */}
-                    {getTimeDisplay()}
+                    <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+                        {/* Категория */}
+                        {getCategoryDisplay()}
+                        
+                        {/* Ограничение по времени */}
+                        {getTimeDisplay()}
+                    </div>
                 </div>
             </div>
         </Card>

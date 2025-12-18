@@ -4,26 +4,33 @@ import {
     Layout, Card, Form, Input, Radio, Button, Space, Typography,
     Checkbox, message, Row, Col, Divider, List, Empty,
     TimePicker, Switch, Collapse, Modal,
-    Alert, Spin
+    Alert, Spin, Select, Tag
 } from 'antd';
 import {
     PlusOutlined, DeleteOutlined, SaveOutlined,
     CheckCircleOutlined, ArrowLeftOutlined, CheckOutlined,
     ClockCircleOutlined, LockOutlined, GlobalOutlined, EditOutlined,
-    CaretRightFilled, ArrowUpOutlined, ArrowDownOutlined,
-    UnlockOutlined,
-    ExclamationCircleOutlined
+    AppstoreOutlined, ExclamationCircleOutlined
 } from '@ant-design/icons';
 import Cookies from 'js-cookie';
 import dayjs from 'dayjs';
 import HeaderComponent from '../components/HeaderComponent';
 import { useQuizes } from '../hooks/useQuizes';
 import { useQuestions } from '../hooks/useQuestions';
+import { 
+    getCategoryName, 
+    getCategoryColor, 
+    getCategoryOriginalName,
+    formatCategoriesFromApi,
+    getDefaultCategories 
+} from '../utils/categoryUtils';
+import apiClient from '../API methods/.APIclient';
 import '../App.css';
 
 const { Content } = Layout;
 const { Title, Text, Paragraph } = Typography;
 const { TextArea } = Input;
+const { Option } = Select;
 
 export default function CreateQuestions() {
     const {getQuizById, updateQuiz, getQuizQuestions} = useQuizes();
@@ -37,7 +44,7 @@ export default function CreateQuestions() {
 
     const [questions, setQuestions] = useState([]);
     const [loadingQuiz, setLoadingQuiz] = useState(true);
-    const [questionType, setQuestionType] = useState(0); // 0 - один вариант, 1 - несколько
+    const [questionType, setQuestionType] = useState(0);
     const [hasTimeLimit, setHasTimeLimit] = useState(false);
     const [savingQuiz, setSavingQuiz] = useState(false);
     
@@ -48,9 +55,76 @@ export default function CreateQuestions() {
     const [editQuestionType, setEditQuestionType] = useState(0);
     const [loadingEdit, setLoadingEdit] = useState(false);
 
+    // Состояния для категорий
+    const [categories, setCategories] = useState([]);
+    const [categoriesLoading, setCategoriesLoading] = useState(false);
+
     useEffect(() => {
+        loadCategories();
         loadQuizData();
     }, [quizId]);
+
+    const loadCategories = async () => {
+        setCategoriesLoading(true);
+        try {
+            console.log('Загрузка категорий для редактирования квиза...');
+            
+            const token = Cookies.get('token');
+            const response = await apiClient.get('/Category', {
+                headers: token ? { 'Authorization': `Bearer ${token}` } : {}
+            });
+            
+            console.log('Категории от API:', response.data);
+            
+            if (response.data && Array.isArray(response.data)) {
+                const formattedCategories = formatCategoriesFromApi(response.data);
+                console.log('Форматированные категории:', formattedCategories);
+                setCategories(formattedCategories);
+            } else {
+                console.error('Некорректный формат данных категорий:', response.data);
+                setCategories([]);
+            }
+        } catch (error) {
+            console.error('Ошибка при загрузке категорий:', error);
+            message.warning('Не удалось загрузить список категорий');
+            setCategories([]);
+        } finally {
+            setCategoriesLoading(false);
+        }
+    };
+    // const loadCategories = async () => {
+    //     setCategoriesLoading(true);
+    //     try {
+    //         const token = Cookies.get('token');
+    //         const response = await fetch(`${process.env.REACT_APP_API_BASE_URL || 'http://localhost:5000'}/api/Category`, {
+    //             headers: token ? { 'Authorization': `Bearer ${token}` } : {}
+    //         });
+            
+    //         if (!response.ok) {
+    //             throw new Error(`HTTP error! status: ${response.status}`);
+    //         }
+            
+    //         const categoriesData = await response.json();
+    //         console.log('Категории загружены:', categoriesData);
+    //         setCategories(categoriesData);
+    //     } catch (error) {
+    //         console.error('Ошибка при загрузке категорий:', error);
+    //         message.warning('Не удалось загрузить список категорий');
+            
+    //         // Создаем дефолтные категории, если API недоступно
+    //         setCategories([
+    //             { CategoryType: 0, Name: 'General' },
+    //             { CategoryType: 1, Name: 'Science' },
+    //             { CategoryType: 2, Name: 'History' },
+    //             { CategoryType: 3, Name: 'Sport' },
+    //             { CategoryType: 4, Name: 'Art' },
+    //             { CategoryType: 5, Name: 'Entertainment' },
+    //             { CategoryType: 7, Name: 'Other' }
+    //         ]);
+    //     } finally {
+    //         setCategoriesLoading(false);
+    //     }
+    // };
 
     const loadQuizData = async () => {
         try {
@@ -61,19 +135,23 @@ export default function CreateQuestions() {
 
             // Устанавливаем значения в форму редактирования
             const timeLimitValue = quizData.timeLimit;
-            // Проверяем, есть ли лимит времени (не пустой и не "00:00:00")
             const hasLimit = timeLimitValue && 
                             timeLimitValue !== '00:00:00' && 
                             timeLimitValue !== null && 
                             timeLimitValue !== '';
             setHasTimeLimit(hasLimit);
             
+            // Устанавливаем категорию (если нет категории, используем значение по умолчанию)
+            const categoryValue = quizData.category !== undefined && quizData.category !== null 
+                ? quizData.category 
+                : 7; // По умолчанию "Другое"
+            
             quizForm.setFieldsValue({
                 title: quizData.title,
                 description: quizData.description || '',
                 accessMode: quizData.isPublic ? 'public' : 'private',
                 timeLimit: hasLimit && timeLimitValue ? dayjs(timeLimitValue, 'HH:mm:ss') : null,
-                category: quizData.category || quizData.categoryId || 0
+                category: categoryValue
             });
 
             // Загружаем существующие вопросы
@@ -87,7 +165,6 @@ export default function CreateQuestions() {
         } catch (error) {
             console.error('Ошибка при загрузке квиза:', error);
             message.error('Не удалось загрузить данные квиза');
-            // navigate('/');
         } finally {
             setLoadingQuiz(false);
         }
@@ -95,8 +172,6 @@ export default function CreateQuestions() {
 
     const onQuizUpdate = async (values) => {
         setSavingQuiz(true);
-
-        console.log(values)
         
         try {
             const token = Cookies.get('token');
@@ -107,23 +182,34 @@ export default function CreateQuestions() {
                 return;
             }
 
+            // Получаем числовое значение категории
+            const categoryValue = parseInt(values.category) || 7;
+
             // Формируем данные для отправки
             const quizData = {
                 title: values.title,
                 description: values.description || '',
-                category: values.category || 0,
-                // isPublic: values.accessMode === 'public',
+                category: categoryValue,
                 timeLimit: hasTimeLimit && values.timeLimit 
                     ? dayjs(values.timeLimit).format('HH:mm:ss')
                     : '00:00:00'
             };
 
-            // Отправляем запрос на обновление квиза
-            const responce = await updateQuiz(token, quizId, quizData);
+            // Если квиз приватный, добавляем isPublic: false
+            if (!quiz.isPublic) {
+                quizData.isPublic = false;
+            }
 
-            if (responce.status === 200) {
+            console.log('Данные для обновления квиза:', quizData);
+
+            // Отправляем запрос на обновление квиза
+            const response = await updateQuiz(token, quizId, quizData);
+
+            if (response?.status === 200 || response?.data) {
                 message.success('Информация о квизе успешно обновлена!');
                 await loadQuizData();
+            } else {
+                throw new Error('Неизвестная ошибка при обновлении квиза');
             }
             
         } catch (error) {
@@ -198,7 +284,7 @@ export default function CreateQuestions() {
             console.error('Ошибка при создании вопроса:', error);
             
             if (error.response?.status === 401) {
-                message.error('Ошибка авторизации. Пожалуйста, войдите снова.');
+                message.error('Ошибка авторизации. Пожалуйста, войните снова.');
                 navigate('/login');
             } else if (error.response?.status === 400) {
                 message.error(error.response.data?.message || error.message || 'Неверные данные для создания вопроса');
@@ -326,7 +412,7 @@ export default function CreateQuestions() {
             console.error('Ошибка при обновлении вопроса:', error);
             
             if (error.response?.status === 401) {
-                message.error('Ошибка авторизации. Пожалуйста, войдите снова.');
+                message.error('Ошибка авторизации. Пожалуйста, войните снова.');
                 navigate('/login');
             } else if (error.response?.status === 400) {
                 message.error(error.response.data?.message || error.message || 'Неверные данные для обновления вопроса');
@@ -542,6 +628,62 @@ export default function CreateQuestions() {
                                             />
                                         </Form.Item>
 
+                                        {/* Категория
+                                        <Form.Item
+                                            name="category"
+                                            label="Категория"
+                                            style={{ marginTop: 16 }}
+                                        >
+                                            <Select
+                                                placeholder="Выберите категорию"
+                                                size="large"
+                                                loading={categoriesLoading}
+                                                suffixIcon={<AppstoreOutlined />}
+                                            >
+                                                {categories.map(category => (
+                                                    <Option key={category.CategoryType} value={category.CategoryType}>
+                                                        <Space>
+                                                            <Tag color={getCategoryColor(category.CategoryType)}>
+                                                                {getCategoryName(category.CategoryType)}
+                                                            </Tag>
+                                                            <Text type="secondary">
+                                                                ({category.Name})
+                                                            </Text>
+                                                        </Space>
+                                                    </Option>
+                                                ))}
+                                            </Select>
+
+                                        </Form.Item> */}
+                                        <Form.Item
+                                            name="category"
+                                            label="Категория"
+                                            style={{ marginTop: 16 }}
+                                        >
+                                            <Select
+                                                placeholder="Выберите категорию"
+                                                size="large"
+                                                loading={categoriesLoading}
+                                                suffixIcon={<AppstoreOutlined />}
+                                            >
+                                                {categories.map(category => (
+                                                    <Option 
+                                                        key={category.categoryType} 
+                                                        value={category.categoryType}
+                                                    >
+                                                        <Space>
+                                                            <Tag color={category.color}>
+                                                                {category.displayName}
+                                                            </Tag>
+                                                            <Text type="secondary">
+                                                                ({category.originalName})
+                                                            </Text>
+                                                        </Space>
+                                                    </Option>
+                                                ))}
+                                            </Select>
+                                        </Form.Item>
+
                                         {/* Лимит времени */}
                                         <Form.Item label="Лимит времени" style={{ marginBottom: 16 }}>
                                             <Space direction="vertical" style={{ width: '100%' }}>
@@ -601,14 +743,6 @@ export default function CreateQuestions() {
                                                 }
                                             />
                                             )}
-
-                                        {/* Категория (скрытое поле, если нужно) */}
-                                        <Form.Item
-                                            name="category"
-                                            hidden
-                                        >
-                                            <Input type="number" />
-                                        </Form.Item>
                                     </Form>
                                 )
                             }]
@@ -806,9 +940,6 @@ export default function CreateQuestions() {
                                                             title={
                                                                 <Space>
                                                                     <Text strong>Вопрос {index + 1}</Text>
-                                                                    {/* <Text type="secondary" style={{ fontSize: '12px' }}>
-                                                                        ({question.type === 0 ? 'Один вариант' : 'Несколько вариантов'})
-                                                                    </Text> */}
                                                                 </Space>
                                                             }
                                                             extra={
@@ -1004,4 +1135,3 @@ export default function CreateQuestions() {
         </Layout>
     );
 }
-

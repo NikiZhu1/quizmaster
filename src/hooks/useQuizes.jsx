@@ -1,44 +1,113 @@
 import React, { useEffect, useState, useCallback, useRef } from 'react';
 import * as api from '../API methods/quizMethods.jsx';
+import * as categoryApi from '../API methods/categoryMethods.jsx'; // Добавляем импорт
 import { getUserInfo } from '../API methods/usersMethods';
 
 export const useQuizes = () => {
     const [quizzes, setQuizzes] = useState([]);
+    const [categories, setCategories] = useState([]); // Добавляем состояние для категорий
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState(null);
+    const [categoryLoading, setCategoryLoading] = useState(false); // Для загрузки категорий
 
-    // const getAllQuizzes = async () => {
-    //     setLoading(true);
-    //     setError(null);
+    // Метод для получения всех категорий
+    const getAllCategories = async () => {
+        setCategoryLoading(true);
+        setError(null);
 
-    //     try {
-    //         // Загружаем квизы
-    //         const quizzesData = await api.getAllQuizzes();
-    //         setQuizzes(quizzesData);
+        try {
+            const categoriesData = await categoryApi.getAllCategories();
+            setCategories(categoriesData);
+            return categoriesData;
+        } catch (err) {
+            setError(err);
+            throw err;
+        } finally {
+            setCategoryLoading(false);
+        }
+    };
 
-    //         return quizzesData;
-    //     } catch (err) {
-    //         setError(err);
-    //     } finally {
-    //         setLoading(false);
-    //     }
-    // };
+    // Метод для получения категории по ID
+    const getCategoryById = async (id) => {
+        setCategoryLoading(true);
+        setError(null);
 
-    // В методе getAllQuizzes в useQuizes.jsx:
-    const getAllQuizzes = async () => {
+        try {
+            const categoryData = await categoryApi.getCategoryById(id);
+            return categoryData;
+        } catch (err) {
+            setError(err);
+            throw err;
+        } finally {
+            setCategoryLoading(false);
+        }
+    };
+
+    // Метод для получения квизов по категории
+    const getQuizzesByCategory = async (categoryName) => {
         setLoading(true);
         setError(null);
 
         try {
-            // Загружаем квизы
-            const quizzesData = await api.getAllQuizzes();
+            const quizzesData = await categoryApi.getQuizzesByCategory(categoryName);
             
-            // Для каждого квиза попробуем получить информацию об авторе
+            // Для каждого квиза получаем информацию об авторе
             const quizzesWithAuthors = await Promise.all(
                 quizzesData.map(async (quiz) => {
                     try {
-                        if (quiz.userId) {
-                            const authorInfo = await getUserInfo(quiz.userId);
+                        if (quiz.authorId) {
+                            const authorInfo = await getUserInfo(quiz.authorId);
+                            return {
+                                ...quiz,
+                                authorName: authorInfo?.userName || authorInfo?.username
+                            };
+                        }
+                        return quiz;
+                    } catch (error) {
+                        console.warn(`Не удалось загрузить автора для квиза ${quiz.id}:`, error);
+                        return quiz;
+                    }
+                })
+            );
+            
+            setQuizzes(quizzesWithAuthors);
+            return quizzesWithAuthors;
+        } catch (err) {
+            setError(err);
+            throw err;
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    // Обновленный метод для получения всех квизов с фильтрацией по категории
+    const getAllQuizzes = async (categoryId = null) => {
+        setLoading(true);
+        setError(null);
+
+        try {
+            let quizzesData;
+            
+            if (categoryId) {
+                // Получаем квизы только выбранной категории
+                const category = categories.find(c => c.CategoryType === categoryId);
+                if (category) {
+                    quizzesData = await getQuizzesByCategory(category.Name);
+                } else {
+                    // Если категория не найдена в локальном списке, загружаем все квизы
+                    quizzesData = await api.getAllQuizzes();
+                }
+            } else {
+                // Получаем все квизы
+                quizzesData = await api.getAllQuizzes();
+            }
+            
+            // Для каждого квиза получаем информацию об авторе
+            const quizzesWithAuthors = await Promise.all(
+                quizzesData.map(async (quiz) => {
+                    try {
+                        if (quiz.authorId) {
+                            const authorInfo = await getUserInfo(quiz.authorId);
                             return {
                                 ...quiz,
                                 authorName: authorInfo?.userName || authorInfo?.username
@@ -61,6 +130,7 @@ export const useQuizes = () => {
         }
     };
 
+    // Остальные существующие методы остаются без изменений...
     const getQuizById = async (id, token) => {
         setLoading(true);
         setError(null);
@@ -152,6 +222,12 @@ export const useQuizes = () => {
     };
     
     return {
+        // Категории
+        getAllCategories,
+        getCategoryById,
+        getQuizzesByCategory,
+        
+        // Квизы
         getAllQuizzes,
         getQuizById,
         createQuiz,
@@ -159,8 +235,12 @@ export const useQuizes = () => {
         deleteQuiz,
         getQuizQuestions,
         connectToQuizByCode,
+        
+        // Состояния
         quizzes,
+        categories, // Добавляем категории в возвращаемое значение
         loading,
+        categoryLoading,
         error
     }
 }

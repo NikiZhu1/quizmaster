@@ -1,24 +1,75 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { 
     Layout, Card, Form, Input, Radio, Button, Space, Typography, 
-    TimePicker, Switch, message, Row, Col, Divider 
+    TimePicker, Switch, message, Row, Col, Divider, Select, Tag
 } from 'antd';
-import { SaveOutlined, ClockCircleOutlined, LockOutlined, GlobalOutlined } from '@ant-design/icons';
+import { 
+    SaveOutlined, ClockCircleOutlined, LockOutlined, 
+    GlobalOutlined, AppstoreOutlined
+} from '@ant-design/icons';
 import dayjs from 'dayjs';
 import Cookies from 'js-cookie';
 import HeaderComponent from '../components/HeaderComponent';
 import apiClient from '../API methods/.APIclient';
+import { 
+    getCategoryName, 
+    getCategoryColor,
+    formatCategoriesFromApi 
+} from '../utils/categoryUtils';
 
 const { Content } = Layout;
 const { Title, Text } = Typography;
 const { TextArea } = Input;
+const { Option } = Select;
 
 export default function CreateQuiz() {
     const [form] = Form.useForm();
     const navigate = useNavigate();
     const [loading, setLoading] = useState(false);
     const [hasTimeLimit, setHasTimeLimit] = useState(false);
+    const [categories, setCategories] = useState([]);
+    const [categoriesLoading, setCategoriesLoading] = useState(false);
+
+    // Загружаем категории при монтировании компонента
+    useEffect(() => {
+        loadCategories();
+    }, []);
+
+    const loadCategories = async () => {
+        setCategoriesLoading(true);
+        try {
+            console.log('Загрузка категорий...');
+            
+            const token = Cookies.get('token');
+            const response = await apiClient.get('/Category', {
+                headers: token ? { 'Authorization': `Bearer ${token}` } : {}
+            });
+            
+            console.log('Ответ от API /Category:', response.data);
+            
+            if (response.data && Array.isArray(response.data)) {
+                const formattedCategories = formatCategoriesFromApi(response.data);
+                console.log('Форматированные категории:', formattedCategories);
+                
+                if (formattedCategories.length === 0) {
+                    message.warning('Список категорий пуст. Проверьте подключение к серверу.');
+                }
+                
+                setCategories(formattedCategories);
+            } else {
+                console.error('Некорректный формат данных категорий:', response.data);
+                message.error('Не удалось загрузить список категорий');
+                setCategories([]);
+            }
+        } catch (error) {
+            console.error('Ошибка при загрузке категорий:', error);
+            message.error('Ошибка при загрузке категорий. Пожалуйста, проверьте подключение к серверу.');
+            setCategories([]);
+        } finally {
+            setCategoriesLoading(false);
+        }
+    };
 
     const onFinish = async (values) => {
         setLoading(true);
@@ -32,17 +83,36 @@ export default function CreateQuiz() {
                 return;
             }
 
+            // Получаем числовое значение категории
+            const categoryValue = parseInt(values.category);
+            if (isNaN(categoryValue)) {
+                message.error('Некорректное значение категории');
+                setLoading(false);
+                return;
+            }
+
+            // Проверяем, что категория допустима
+            const validCategories = [0, 1, 2, 3, 4, 5, 7];
+            if (!validCategories.includes(categoryValue)) {
+                message.error('Выбрана недопустимая категория');
+                setLoading(false);
+                return;
+            }
+
             // Формируем данные для отправки
             const quizData = {
                 title: values.title,
                 description: values.description || '',
-                isPublic: values.accessMode === 'public'
+                isPublic: values.accessMode === 'public',
+                category: categoryValue  // Поле должно называться "category"
             };
 
             // Добавляем timeLimit только если установлен лимит времени
             if (hasTimeLimit && values.timeLimit) {
                 quizData.timeLimit = dayjs(values.timeLimit).format('HH:mm:ss');
             }
+
+            console.log('Отправка данных квиза:', quizData);
 
             // Отправляем запрос на создание квиза
             const response = await apiClient.post('/Quiz', quizData, {
@@ -67,7 +137,8 @@ export default function CreateQuiz() {
                 message.error('Ошибка авторизации. Пожалуйста, войдите снова.');
                 navigate('/login');
             } else if (error.response?.status === 400) {
-                message.error(error.response.data?.message || 'Неверные данные для создания квиза');
+                const errorMessage = error.response.data?.message || error.response.data || 'Неверные данные для создания квиза';
+                message.error(errorMessage);
             } else {
                 message.error('Ошибка при создании квиза. Попробуйте еще раз.');
             }
@@ -102,6 +173,10 @@ export default function CreateQuiz() {
                             onFinish={onFinish}
                             onFinishFailed={onFinishFailed}
                             autoComplete="off"
+                            initialValues={{
+                                accessMode: 'public',
+                                category: 7 // По умолчанию "Другое"
+                            }}
                         >
                             {/* Название квиза */}
                             <Form.Item
@@ -129,6 +204,39 @@ export default function CreateQuiz() {
                                     showCount
                                     maxLength={1000}
                                 />
+                            </Form.Item>
+
+                            {/* Категория */}
+                            <Form.Item
+                                name="category"
+                                label="Категория"
+                                rules={[
+                                    { required: true, message: 'Выберите категорию для квиза!' }
+                                ]}
+                            >
+                                <Select
+                                    placeholder="Выберите категорию"
+                                    size="large"
+                                    loading={categoriesLoading}
+                                    notFoundContent={categoriesLoading ? "Загрузка категорий..." : "Категории не найдены"}
+                                    suffixIcon={<AppstoreOutlined />}
+                                >
+                                    {categories.map(category => (
+                                        <Option 
+                                            key={category.categoryType} 
+                                            value={category.categoryType}
+                                        >
+                                            <Space>
+                                                <Tag color={category.color}>
+                                                    {category.displayName}
+                                                </Tag>
+                                                <Text type="secondary">
+                                                    ({category.originalName})
+                                                </Text>
+                                            </Space>
+                                        </Option>
+                                    ))}
+                                </Select>
                             </Form.Item>
 
                             {/* Лимит времени */}
@@ -173,7 +281,6 @@ export default function CreateQuiz() {
                                 rules={[
                                     { required: true, message: 'Выберите режим доступа!' }
                                 ]}
-                                initialValue="public"
                             >
                                 <Radio.Group>
                                     <Space direction="vertical">
