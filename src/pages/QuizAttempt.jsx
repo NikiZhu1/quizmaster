@@ -1,13 +1,13 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useCallback, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { 
     Layout, Row, Col, Card, Radio, Checkbox, Button, Space, 
-    Typography, Alert, Spin, Divider, Tooltip 
+    Typography, Alert, Spin, Divider, Tooltip, Flex
 } from 'antd';
 import { 
     LeftOutlined, 
     QuestionCircleOutlined, CheckCircleOutlined,
-    RightOutlined, CheckOutlined, SaveOutlined
+    RightOutlined, CheckOutlined, SaveOutlined, ClockCircleOutlined
 } from '@ant-design/icons';
 import Cookies from 'js-cookie';
 
@@ -39,36 +39,69 @@ export default function QuizAttempt() {
         visitedQuestions,
         hasTimeLimit,
         startQuizAttempt,
+        getAttemptById,
+        checkAndRestoreAttempt,
         saveAnswer,
         goToNextQuestion,
         goToPreviousQuestion,
         goToQuestion,
         finishQuizAttempt,
         markQuestionAsVisited,
-        cleanup
+        cleanup,
+        clearAttemptStorage
     } = useQuizAttempt();
 
     const [submitting, setSubmitting] = useState(false);
+    const [initialized, setInitialized] = useState(false);
 
-    // Начинаем попытку при загрузке страницы
+    // useEffect(() => {
+    //     console.log('Таймер обновлен:', timeLeft);
+    // }, [timeLeft]);
+
+    // Инициализация попытки при загрузке страницы
     useEffect(() => {
-        const startAttempt = async () => {
+        const initializeAttempt = async () => {
             try {
                 const token = Cookies.get('token');
                 const quiz = await getQuizById(quizId, token);
-                console.log("квиз", quiz)
-                await startQuizAttempt(quizId, quiz.privateAccessKey);
+                
+                // Пытаемся восстановить существующую попытку
+                const restored = await checkAndRestoreAttempt(quizId, quiz.privateAccessKey);
+                
+                if (!restored) {
+                    // Если нет активной попытки, начинаем новую
+                    await startQuizAttempt(quizId, quiz.privateAccessKey);
+                }
+                
+                setInitialized(true);
             } catch (err) {
-                console.error('Ошибка начала попытки:', err);
-                setTimeout(() => navigate('/'), 2000);
+                console.error('Ошибка инициализации попытки:', err);
+                
+                // Если ошибка авторизации, перенаправляем на логин
+                if (err.message.includes('авторизация') || err.response?.status === 401) {
+                    navigate('/login');
+                } else {
+                    // Показываем ошибку и через 2 секунды переходим на главную
+                    setTimeout(() => navigate('/'), 2000);
+                }
             }
         };
 
-        startAttempt();
+        if (!initialized) {
+            initializeAttempt();
+        }
 
         // Очистка при размонтировании
         return cleanup;
-    }, [quizId]);
+    }, [quizId, initialized]);
+
+    // Проверяем, если время уже истекло при загрузке
+    useEffect(() => {
+        if (timeLeft === 0 && hasTimeLimit && !submitting) {
+          window.alert('Время, отведенное на прохождение викторины, уже истекло. Викторина будет автоматически завершена.');
+          handleTimeExpired();
+        }
+      }, [timeLeft, hasTimeLimit]);
 
     // Обновляем состояние выбора ответа
     useEffect(() => {
@@ -85,6 +118,13 @@ export default function QuizAttempt() {
             markQuestionAsVisited(currentQuestion.id);
         }
     }, [currentQuestion, markQuestionAsVisited]);
+
+    // Автоматическое завершение при истечении времени
+    useEffect(() => {
+        if (timeLeft === 0 && hasTimeLimit && initialized && !submitting) {
+            handleTimeExpired();
+        }
+    }, [timeLeft, hasTimeLimit, initialized]);
 
     // Обработчик выбора ответа
     const handleAnswerSelect = (optionId) => {
@@ -156,25 +196,27 @@ export default function QuizAttempt() {
     };
 
     // Автоматическое завершение при истечении времени
-    const handleTimeExpired = async () => {
+    const handleTimeExpired = useCallback(async () => {
+        if (submitting) return;
+        
         setSubmitting(true);
         try {
-            const result = await finishQuizAttempt();
-            navigate(`/quiz-result/${result.id}`);
+          const result = await finishQuizAttempt();
+          navigate(`/quiz-result/${result.id}`);
         } catch (err) {
-            console.error('Ошибка завершения квиза:', err);
+          console.error('Ошибка завершения квиза:', err);
         } finally {
-            setSubmitting(false);
+          setSubmitting(false);
+        }
+      }, [submitting, finishQuizAttempt, navigate]);
+
+      // Кнопка отмены и возврата
+    const handleCancelAttempt = () => {
+        if (window.confirm('Вы уверены, что хотите прервать прохождение квиза? Все ответы будут потеряны.')) {
+            clearAttemptStorage();
+            navigate(`/quiz/${quizId}`);
         }
     };
-
-    // Автоматическое завершение при истечении времени
-    useEffect(() => {
-        if (timeLeft === 0 && hasTimeLimit) {
-            window.alert('Время, отведенное на прохождение викторины, закончилось. Викторина будет автоматически завершена.');
-            handleTimeExpired();
-        }
-    }, [timeLeft, hasTimeLimit]);
 
     // Функция для форматирования секунд в ЧЧ:ММ:СС
     const formatTimeToHHMMSS = (seconds) => {
@@ -192,7 +234,7 @@ export default function QuizAttempt() {
         return `${formattedHours}:${formattedMinutes}:${formattedSeconds}`;
     };
 
-    if (loading) {
+    if (loading && !initialized) {
         return (
             <div style={{ 
                 display: 'flex', 
@@ -223,7 +265,7 @@ export default function QuizAttempt() {
         );
     }
 
-    if (!currentQuestion) {
+    if (!currentQuestion && initialized) {
         return (
             <div style={{ padding: 24 }}>
                 <Alert
@@ -254,50 +296,99 @@ export default function QuizAttempt() {
         <Layout style={{ minHeight: '100vh' }}>
             {/* Шапка с таймером и прогрессом */}
             <Header style={{ 
-                background: '#fff', 
-                padding: '0 24px',
-                boxShadow: '0 2px 8px rgba(0,0,0,0.06)',
+                background: '#ffffff',
+                padding: '16px 24px',
                 height: 'auto',
-                minHeight: '64px'
+                // minHeight: '80px',
+                boxShadow: '0 2px 8px rgba(0,0,0,0.06)',
+                borderBottom: '1px solid #f0f0f0'
             }}>
-                <Row justify="center" align="middle" style={{ height: '100%', padding: '12px 0' }}>
-                    <Col>
-                        <Space direction="vertical" size="small" align="center" style={{ width: '100%' }}>
-                            <Title level={4} style={{ margin: 0, textAlign: 'center' }}>
-                                {truncateTitle(quizInfo?.title)}
-                            </Title>
-                            
-                            {/* Таймер обратного отсчета - показываем только если есть timeLimit */}
-                            {hasTimeLimit && timeLeft !== null && (
-                                <Space direction="vertical" size={0} align="center">
-                                    <div style={{ 
-                                        fontSize: '24px', 
-                                        fontWeight: 'bold',
-                                        color: timeLeft < 60 ? '#ff4d4f' : 
-                                               timeLeft < 300 ? '#faad14' : '#1890ff',
-                                        fontFamily: 'monospace',
-                                        letterSpacing: '1px',
-                                        lineHeight: 1
-                                    }}>
-                                        {formatTimeToHHMMSS(timeLeft)}
-                                    </div>
-                                    {timeLeft < 300 && (
-                                        <Text 
-                                            type={timeLeft < 60 ? 'danger' : 'warning'} 
-                                            style={{ fontSize: '12px', lineHeight: 1 }}
-                                        >
-                                            {timeLeft < 60 ? '⏳ Время почти вышло!' : '⚠ Времени осталось мало!'}
-                                        </Text>
-                                    )}
-                                </Space>
-                            )}
-                            
-                            <Text type="secondary" style={{ textAlign: 'center' }}>
-                                Вопрос {progress.current} из {progress.total}
-                            </Text>
-                        </Space>
-                    </Col>
-                </Row>
+                <Flex justify="space-between" align='center' style={{ height: '100%' }}>
+                    {/* Левая часть - кнопка отмены */}
+                    <Button 
+                        onClick={handleCancelAttempt}
+                        type='link'
+                        icon={<LeftOutlined />}
+                        style={{
+                            color: '#8c8c8c',
+                            fontWeight: 500,
+                            fontSize: '14px',
+                            // padding: '8px 16px',
+                            borderRadius: '6px'
+                        }}
+                        onMouseEnter={(e) => {
+                            e.currentTarget.style.background = '#f5f5f5';
+                            e.currentTarget.style.color = '#262626';
+                        }}
+                        onMouseLeave={(e) => {
+                            e.currentTarget.style.background = 'transparent';
+                            e.currentTarget.style.color = '#8c8c8c';
+                        }}
+                    >
+                        Вернуться
+                    </Button>
+
+                    {/* Центральная часть - название квиза и таймер */}
+                    <Flex vertical gap='8px' align="center" style={{ textAlign: 'center' }}>
+                        {/* Название квиза */}
+                        <Title level={4} style={{ 
+                            margin: 0,
+                            color: '#262626',
+                            fontWeight: 600,
+                            fontSize: '20px',
+                            maxWidth: '400px',
+                            overflow: 'hidden',
+                            textOverflow: 'ellipsis',
+                            whiteSpace: 'nowrap'
+                        }}>
+                            {quizInfo?.title || 'Квиз'}
+                        </Title>
+                        
+                        {/* Таймер под названием */}
+                        {hasTimeLimit && timeLeft !== null && (
+                            <div style={{
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: '8px',
+                            }}>
+                                <div style={{
+                                    fontSize: '18px',
+                                    lineHeight: 1,
+                                    fontWeight: 600,
+                                    fontFamily: "'JetBrains Mono', 'Consolas', monospace",
+                                    color: timeLeft < 60 ? '#ff4d4f' : 
+                                        timeLeft < 300 ? '#faad14' : '#1890ff',
+                                    letterSpacing: '0.5px'
+                                }}>
+                                    {formatTimeToHHMMSS(timeLeft)}
+                                </div>
+                            </div>
+                        )}
+                    </Flex>
+
+                    {/* Правая часть - прогресс и отвеченные вопросы */}
+                    <div style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '6px',
+                        padding: '4px 10px',
+                        background: '#f6ffed',
+                        borderRadius: '12px',
+                        border: '1px solid #b7eb8f'
+                    }}>
+                        <CheckCircleOutlined style={{ 
+                            color: '#52c41a', 
+                            fontSize: '14px' 
+                        }} />
+                        <Text style={{ 
+                            color: '#389e0d',
+                            fontSize: '14px',
+                            fontWeight: 500 
+                        }}>
+                            Отвечено: {answeredCount} из {questions.length}
+                        </Text>
+                    </div>
+                </Flex>
             </Header>
 
             <Layout>
@@ -307,15 +398,15 @@ export default function QuizAttempt() {
                     padding: '24px 16px',
                     borderRight: '1px solid #f0f0f0'
                 }}>
-                    <Title level={5} style={{ marginBottom: 16 }}>
+                    <Title level={5} style={{ marginBottom: 16, marginTop: 0 }}>
                         Навигация по вопросам
                     </Title>
                     
-                    <Space direction="vertical" style={{ width: '100%' }}>
+                    <Flex wrap gap='8px' style={{ width: '100%' }}>
                         {questions.map((question, index) => {
                             const isAnswered = answers[question.id] && answers[question.id].length > 0;
                             const isCurrent = currentQuestionIndex === index;
-                            const isVisited = visitedQuestions.has(question.id);
+                            // const isVisited = visitedQuestions.has(question.id);
                             
                             let buttonType = "dashed";
                             let backgroundColor = undefined;
@@ -327,19 +418,19 @@ export default function QuizAttempt() {
                                 buttonType = "default";
                                 backgroundColor = '#d9f7be';
                                 borderColor = '#52c41a';
-                            } else if (isVisited) {
-                                buttonType = "default";
-                                backgroundColor = '#fff7e6';
-                                borderColor = '#faad14';
                             }
+                            // } else if (isVisited) {
+                            //     buttonType = "default";
+                            //     backgroundColor = '#fff7e6';
+                            //     borderColor = '#faad14';
+                            // }
                             
                             return (
                                 <Tooltip 
                                     key={question.id} 
                                     title={
                                         isAnswered ? "Ответ дан" : 
-                                        isVisited ? "Просмотрен" : 
-                                        "Не просмотрен"
+                                        "Ответа нет"
                                     }
                                 >
                                     <Button
@@ -359,23 +450,20 @@ export default function QuizAttempt() {
                                         {isAnswered && !isCurrent && (
                                             <CheckOutlined style={{ fontSize: 10, marginLeft: 2 }} />
                                         )}
-                                        {isVisited && !isAnswered && !isCurrent && (
-                                            <span style={{ fontSize: 10, marginLeft: 2 }}>👁</span>
-                                        )}
                                     </Button>
                                 </Tooltip>
                             );
                         })}
-                    </Space>
+                    </Flex>
 
                     <Divider style={{ margin: '16px 0' }} />
 
                     <Space direction="vertical" style={{ width: '100%' }}>
-                        <Text type="secondary" style={{ fontSize: 12 }}>
+                        {/* <Text type="secondary" style={{ fontSize: 12 }}>
                             <span style={{ color: '#52c41a' }}>●</span> Ответ дан<br />
                             <span style={{ color: '#faad14' }}>●</span> Просмотрен<br />
                             <span style={{ color: '#d9d9d9' }}>●</span> Не просмотрен
-                        </Text>
+                        </Text> */}
                         
                         <Button
                             type="primary"
@@ -399,11 +487,11 @@ export default function QuizAttempt() {
                                 <QuestionCircleOutlined />
                                 <Text strong>Вопрос {progress.current}</Text>
                                 <Text type="secondary" style={{ fontSize: 14 }}>
-                                    ({currentQuestion.type === 0 ? 'Одиночный выбор' : 'Множественный выбор'})
+                                    ({currentQuestion?.type === 0 ? 'Одиночный выбор' : 'Множественный выбор'})
                                 </Text>
                             </Space>
                         }
-                        style={{ minHeight: '60vh' }}
+                        // style={{ minHeight: '60vh' }}
                         extra={
                             <Space>
                                 {isQuestionAnswered && (
@@ -417,11 +505,11 @@ export default function QuizAttempt() {
                     >
                         <Space direction="vertical" size="large" style={{ width: '100%' }}>
                             <Paragraph style={{ fontSize: '18px', marginBottom: 24 }}>
-                                {currentQuestion.text}
+                                {currentQuestion?.text}
                             </Paragraph>
 
                             <Space direction="vertical" style={{ width: '100%' }}>
-                                {currentQuestion.options?.map(option => (
+                                {currentQuestion?.options?.map(option => (
                                     <Card
                                         key={option.id}
                                         hoverable

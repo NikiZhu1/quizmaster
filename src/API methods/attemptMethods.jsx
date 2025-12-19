@@ -114,9 +114,7 @@ export const finishAttempt = async (attemptId, answers) => {
  * @param {number} attemptId - ID попытки
  * @returns {Promise<Object>} - Объект попытки
  */
-export const getAttemptById = async (attemptId) => {
-  const token = Cookies.get('token');
-  
+export const getAttemptById = async (attemptId, token) => {
   try {
     const response = await apiClient.get(`/Attempt/${attemptId}`, {
         headers: token ? { Authorization: `Bearer ${token}` } : {}

@@ -15,6 +15,76 @@ export const useQuizAttempt = () => {
   const [visitedQuestions, setVisitedQuestions] = useState(new Set());
   const timerRef = useRef(null);
 
+  // Ключи для localStorage
+  const ATTEMPT_STORAGE_KEY = 'current_quiz_attempt';
+  const ANSWERS_STORAGE_KEY = 'quiz_attempt_answers';
+  const CURRENT_QUESTION_KEY = 'quiz_current_question';
+
+  // Сохранить данные попытки в localStorage
+  const saveAttemptToStorage = useCallback((attemptData) => {
+    if (attemptData) {
+      const storageData = {
+        id: attemptData.id,
+        quizId: attemptData.quizId,
+        startedAt: new Date().toISOString(), // Сохраняем время начала локально
+        completedAt: attemptData.completedAt,
+        guestSessionId: attemptData.guestSessionId
+      };
+      localStorage.setItem(ATTEMPT_STORAGE_KEY, JSON.stringify(storageData));
+    }
+  }, []);
+
+  // Загрузить данные попытки из localStorage
+  const loadAttemptFromStorage = useCallback(() => {
+    const stored = localStorage.getItem(ATTEMPT_STORAGE_KEY);
+    if (stored) {
+      try {
+        return JSON.parse(stored);
+      } catch (e) {
+        console.error('Ошибка при чтении данных попытки из localStorage:', e);
+        return null;
+      }
+    }
+    return null;
+  }, []);
+
+  // Сохранить ответы в localStorage
+  const saveAnswersToStorage = useCallback((answersData) => {
+    localStorage.setItem(ANSWERS_STORAGE_KEY, JSON.stringify(answersData));
+  }, []);
+
+  // Загрузить ответы из localStorage
+  const loadAnswersFromStorage = useCallback(() => {
+    const stored = localStorage.getItem(ANSWERS_STORAGE_KEY);
+    if (stored) {
+      try {
+        return JSON.parse(stored);
+      } catch (e) {
+        console.error('Ошибка при чтении ответов из localStorage:', e);
+        return {};
+      }
+    }
+    return {};
+  }, []);
+
+  // Сохранить текущий вопрос в localStorage
+  const saveCurrentQuestionToStorage = useCallback((index) => {
+    localStorage.setItem(CURRENT_QUESTION_KEY, index.toString());
+  }, []);
+
+  // Загрузить текущий вопрос из localStorage
+  const loadCurrentQuestionFromStorage = useCallback(() => {
+    const stored = localStorage.getItem(CURRENT_QUESTION_KEY);
+    return stored ? parseInt(stored) : 0;
+  }, []);
+
+  // Очистить данные попытки из localStorage
+  const clearAttemptStorage = useCallback(() => {
+    localStorage.removeItem(ATTEMPT_STORAGE_KEY);
+    localStorage.removeItem(ANSWERS_STORAGE_KEY);
+    localStorage.removeItem(CURRENT_QUESTION_KEY);
+  }, []);
+
   // Функция для преобразования строки времени "00:10:47" в секунды
   const parseTimeStringToSeconds = (timeString) => {
     if (!timeString) return null;
@@ -35,6 +105,23 @@ export const useQuizAttempt = () => {
     }
   };
 
+  // Функция для вычисления оставшегося времени
+  const calculateTimeLeft = (startTime, timeLimitSeconds) => {
+    if (!startTime || !timeLimitSeconds) return null;
+    
+    try {
+      const start = new Date(startTime);
+      const now = new Date();
+      const elapsedSeconds = Math.floor((now - start) / 1000);
+      const remainingSeconds = timeLimitSeconds - elapsedSeconds;
+      
+      return Math.max(0, remainingSeconds); // Не меньше 0
+    } catch (error) {
+      console.error('Ошибка вычисления оставшегося времени:', error);
+      return null;
+    }
+  };
+
   // Начать попытку
   const startQuizAttempt = async (quizId, accessKey = null) => {
     setLoading(true);
@@ -46,25 +133,44 @@ export const useQuizAttempt = () => {
       const attemptData = await api.startAttempt(token, quizId, accessKey);
       setAttempt(attemptData);
       
+      // Сохраняем данные попытки в localStorage
+      saveAttemptToStorage(attemptData);
+
       // Сохраняем guestSessionId если есть
       if (attemptData.guestSessionId) {
         Cookies.set('guestSessionId', attemptData.guestSessionId, { expires: 1 });
       }
       
-      // Получаем информацию о квизе (чтобы узнать timeLimit)
+      // Получаем информацию о квизе
       const quizData = await quizApi.getQuizById(quizId, token);
       setQuizInfo(quizData);
       
       // Получаем вопросы квиза
       const questionsData = await quizApi.getQuizQuestions(quizId, accessKey);
       setQuestions(questionsData);
+
+      // Инициализируем пустые ответы
+      setAnswers({});
+      saveAnswersToStorage({});
+      
+      // Устанавливаем текущий вопрос
+      setCurrentQuestionIndex(0);
+      saveCurrentQuestionToStorage(0);
       
       // Устанавливаем таймер, если есть ограничение по времени
-      if (quizData.timeLimit) {
+      if (quizData.timeLimit && attemptData.completedAt) {
         const totalSeconds = parseTimeStringToSeconds(quizData.timeLimit);
         if (totalSeconds && totalSeconds > 0) {
-          setTimeLeft(totalSeconds);
-          startTimer(totalSeconds);
+          // Вычисляем оставшееся время на основе времени начала
+          const remainingTime = calculateTimeLeft(attemptData.completedAt, totalSeconds);
+          
+          if (remainingTime !== null && remainingTime > 0) {
+            setTimeLeft(remainingTime);
+            initializeTimer(remainingTime);
+          } else if (remainingTime === 0) {
+            // Время уже истекло, завершаем попытку
+            setTimeLeft(0);
+          }
         }
       }
       
@@ -77,30 +183,108 @@ export const useQuizAttempt = () => {
     }
   };
 
+  // Получить данные попытки
+  const getAttemptById = async (attemptId) => {
+    setLoading(true);
+    setError(null);
+
+    const token = Cookies.get('token');
+
+    try {
+      // Получаем данные
+      const attemptData = await api.getAttemptById(attemptId, token);
+      setAttempt(attemptData);
+
+      // Сохраняем данные попытки в localStorage
+      saveAttemptToStorage(attemptData);
+      
+      // Сохраняем guestSessionId если есть
+      if (attemptData.guestSessionId) {
+        Cookies.set('guestSessionId', attemptData.guestSessionId, { expires: 1 });
+      }
+      
+      // Получаем информацию о квизе
+      const quizData = await quizApi.getQuizById(attemptData.quizId, token);
+      setQuizInfo(quizData);
+      
+      // Получаем вопросы квиза
+      const questionsData = await quizApi.getQuizQuestions(quizData.id, quizData.privateAccessKey);
+      setQuestions(questionsData);
+
+      // Загружаем сохраненные ответы
+      const savedAnswers = loadAnswersFromStorage();
+      setAnswers(savedAnswers);
+      
+      // Загружаем сохраненный текущий вопрос
+      const savedQuestionIndex = loadCurrentQuestionFromStorage();
+      setCurrentQuestionIndex(savedQuestionIndex);
+      
+      // Устанавливаем таймер, если есть ограничение по времени
+      if (quizData.timeLimit && attemptData.completedAt) {
+        const totalSeconds = parseTimeStringToSeconds(quizData.timeLimit);
+        if (totalSeconds && totalSeconds > 0) {
+          // Вычисляем оставшееся время на основе времени начала
+          const remainingTime = calculateTimeLeft(attemptData.completedAt, totalSeconds);
+          
+          if (remainingTime !== null && remainingTime > 0) {
+            setTimeLeft(remainingTime);
+            initializeTimer(remainingTime);
+          } else if (remainingTime === 0) {
+            // Время уже истекло, завершаем попытку
+            setTimeLeft(0);
+            // finishQuizAttempt();
+          }
+        }
+      }
+      
+      return attemptData;
+    } catch (err) {
+      setError(err.message);
+      throw err;
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Проверить и восстановить активную попытку
+  const checkAndRestoreAttempt = async (quizId, accessKey = null) => {
+    const storedAttempt = loadAttemptFromStorage();
+    
+    if (storedAttempt && storedAttempt.quizId === parseInt(quizId)) {
+      // Восстанавливаем существующую попытку
+      try {
+        await getAttemptById(storedAttempt.id, accessKey);
+        return true; // Попытка восстановлена
+      } catch (error) {
+        console.warn('Не удалось восстановить попытку:', error);
+        // Очищаем невалидные данные
+        clearAttemptStorage();
+        return false; // Попытка не восстановлена
+      }
+    }
+    return false; // Нет сохраненной попытки для этого квиза
+  };
+
   // Таймер обратного отсчета
-  const startTimer = (totalSeconds) => {
+  const initializeTimer = (seconds) => {
     if (timerRef.current) {
       clearInterval(timerRef.current);
     }
-    
-    timerRef.current = setInterval(() => {
-      setTimeLeft(prev => {
-        if (prev <= 1) {
-          clearInterval(timerRef.current);
-          return 0;
-        }
-        return prev - 1;
-      });
-    }, 1000);
+    setTimeLeft(seconds);
   };
 
   // Сохранить ответ на вопрос
   const saveAnswer = useCallback((questionId, chosenOptions) => {
-    setAnswers(prev => ({
-      ...prev,
-      [questionId]: chosenOptions
-    }));
-  }, []);
+    setAnswers(prev => {
+      const newAnswers = {
+        ...prev,
+        [questionId]: chosenOptions
+      };
+      // Сохраняем ответы в localStorage
+      saveAnswersToStorage(newAnswers);
+      return newAnswers;
+    });
+  }, [saveAnswersToStorage]);
 
   // Отметить вопрос как посещенный
   const markQuestionAsVisited = useCallback((questionId) => {
@@ -110,38 +294,40 @@ export const useQuizAttempt = () => {
   // Перейти к следующему вопросу
   const goToNextQuestion = useCallback(() => {
     if (currentQuestionIndex < questions.length - 1) {
-      // Помечаем текущий вопрос как посещенный перед переходом
       const currentQuestion = questions[currentQuestionIndex];
       if (currentQuestion) {
         markQuestionAsVisited(currentQuestion.id);
       }
-      setCurrentQuestionIndex(prev => prev + 1);
+      const newIndex = currentQuestionIndex + 1;
+      setCurrentQuestionIndex(newIndex);
+      saveCurrentQuestionToStorage(newIndex);
     }
-  }, [currentQuestionIndex, questions, markQuestionAsVisited]);
+  }, [currentQuestionIndex, questions, markQuestionAsVisited, saveCurrentQuestionToStorage]);
 
   // Перейти к предыдущему вопросу
   const goToPreviousQuestion = useCallback(() => {
     if (currentQuestionIndex > 0) {
-      // Помечаем текущий вопрос как посещенный перед переходом
       const currentQuestion = questions[currentQuestionIndex];
       if (currentQuestion) {
         markQuestionAsVisited(currentQuestion.id);
       }
-      setCurrentQuestionIndex(prev => prev - 1);
+      const newIndex = currentQuestionIndex - 1;
+      setCurrentQuestionIndex(newIndex);
+      saveCurrentQuestionToStorage(newIndex);
     }
-  }, [currentQuestionIndex, questions, markQuestionAsVisited]);
+  }, [currentQuestionIndex, questions, markQuestionAsVisited, saveCurrentQuestionToStorage]);
 
   // Перейти к конкретному вопросу
   const goToQuestion = useCallback((index) => {
     if (index >= 0 && index < questions.length) {
-      // Помечаем текущий вопрос как посещенный перед переходом
       const currentQuestion = questions[currentQuestionIndex];
       if (currentQuestion) {
         markQuestionAsVisited(currentQuestion.id);
       }
       setCurrentQuestionIndex(index);
+      saveCurrentQuestionToStorage(index);
     }
-  }, [currentQuestionIndex, questions, markQuestionAsVisited]);
+  }, [currentQuestionIndex, questions, markQuestionAsVisited, saveCurrentQuestionToStorage]);
 
   // Завершить попытку
   const finishQuizAttempt = async () => {
@@ -161,7 +347,6 @@ export const useQuizAttempt = () => {
         };
       });
       
-      // ВОТ ИСПРАВЛЕНИЕ ДЛЯ ВТОРОЙ ПРОБЛЕМЫ:
       // Добавляем пустые ответы для ВСЕХ вопросов, даже если на них не отвечали
       questions.forEach(question => {
         if (!answers[question.id]) {
@@ -179,7 +364,9 @@ export const useQuizAttempt = () => {
       // Завершаем попытку
       const result = await api.finishAttempt(attempt.id, formattedAnswers);
       
-      // Очищаем таймер
+      // Очищаем 
+      clearAttemptStorage();
+
       if (timerRef.current) {
         clearInterval(timerRef.current);
       }
@@ -222,14 +409,53 @@ export const useQuizAttempt = () => {
   // Есть ли у квиза ограничение по времени
   const hasTimeLimit = quizInfo && quizInfo.timeLimit;
 
-  // Очистка при размонтировании
-  useEffect(() => {
-    return () => {
-      if (timerRef.current) {
-        clearInterval(timerRef.current);
-      }
-    };
-  }, []);
+  // Эффект для управления таймером
+useEffect(() => {
+  // Если есть время и оно больше 0, запускаем таймер
+  if (timeLeft !== null && timeLeft > 0) {
+    // console.log('Запуск таймера с временем:', timeLeft);
+    
+    // Очищаем предыдущий таймер
+    if (timerRef.current) {
+      clearInterval(timerRef.current);
+    }
+    
+    // Создаем новый интервал
+    timerRef.current = setInterval(() => {
+      // console.log('Таймер тик, текущее время:', timeLeft);
+      setTimeLeft(prev => {
+        // console.log('Обновление времени с', prev, 'на', prev - 1);
+        if (prev <= 1) {
+          console.log('Время истекло');
+          clearInterval(timerRef.current);
+          return 0;
+        }
+        return prev - 1;
+      });
+    }, 1000);
+  } else if (timeLeft === 0) {
+    // Если время истекло, очищаем таймер
+    if (timerRef.current) {
+      clearInterval(timerRef.current);
+    }
+  }
+  
+  // Очистка при размонтировании или изменении timeLeft
+  return () => {
+    if (timerRef.current) {
+      clearInterval(timerRef.current);
+    }
+  };
+}, [timeLeft]); // Эффект зависит от timeLeft
+
+// Очистка при полном размонтировании хука
+useEffect(() => {
+  return () => {
+    if (timerRef.current) {
+      clearInterval(timerRef.current);
+    }
+  };
+}, []);
 
   return {
     // Состояние
@@ -250,6 +476,8 @@ export const useQuizAttempt = () => {
     
     // Методы
     startQuizAttempt,
+    getAttemptById,
+    checkAndRestoreAttempt,
     saveAnswer,
     goToNextQuestion,
     goToPreviousQuestion,
@@ -260,6 +488,7 @@ export const useQuizAttempt = () => {
       if (timerRef.current) {
         clearInterval(timerRef.current);
       }
-    }
+    },
+    clearAttemptStorage
   };
 };
