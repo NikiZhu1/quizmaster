@@ -1,9 +1,12 @@
 import React, { useState } from 'react';
-import { Card, Typography, Tag, Space, Modal, message } from 'antd';
-import { ClockCircleOutlined, QuestionCircleOutlined, EditOutlined, DeleteOutlined } from '@ant-design/icons';
+import { Card, Typography, Tag, Space, Modal, message, Button } from 'antd';
+import { 
+  ClockCircleOutlined, QuestionCircleOutlined, EditOutlined, 
+  DeleteOutlined, BarChartOutlined 
+} from '@ant-design/icons';
 import { useNavigate } from 'react-router-dom';
 import Cookies from 'js-cookie';
-import { useQuizes } from '../hooks/useQuizes.jsx';
+import { useQuizes } from '../hooks/useQuizes';
 
 const { Text, Paragraph, Title } = Typography;
 
@@ -14,6 +17,10 @@ function MyQuizCard({ quiz, onDelete }) {
 
     const handleEdit = () => {
         navigate(`/quiz/${quiz.id}/questions`);
+    };
+
+    const handleStatistics = () => {
+        navigate(`/quiz/${quiz.id}/statistics`);
     };
 
     const handleDeleteClick = (e) => {
@@ -80,21 +87,31 @@ function MyQuizCard({ quiz, onDelete }) {
             </Tag>
         );
     };
-
+    
     const cardActions = [
-        <EditOutlined 
-            key="edit" 
+        <Button 
+            type="text" 
+            icon={<BarChartOutlined />}
+            onClick={(e) => {
+                e.stopPropagation();
+                handleStatistics();
+            }}
+            title="Статистика"
+        />,
+        <Button 
+            type="text" 
+            icon={<EditOutlined />}
             onClick={(e) => {
                 e.stopPropagation();
                 handleEdit();
             }}
-            style={{ fontSize: '16px', color: '#1890ff' }}
             title="Редактировать"
         />,
-        <DeleteOutlined 
-            key="delete" 
+        <Button 
+            type="text" 
+            danger
+            icon={<DeleteOutlined />}
             onClick={handleDeleteClick}
-            style={{ fontSize: '16px', color: '#ff4d4f' }}
             title="Удалить"
         />
     ];

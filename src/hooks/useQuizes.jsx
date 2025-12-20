@@ -1,14 +1,17 @@
 import React, { useEffect, useState, useCallback, useRef } from 'react';
 import * as api from '../API methods/quizMethods.jsx';
-import * as categoryApi from '../API methods/categoryMethods.jsx'; // Добавляем импорт
-import { getUserInfo } from '../API methods/usersMethods';
+import * as categoryApi from '../API methods/categoryMethods.jsx';
+import { useUsers } from './useUsers'; // Добавляем импорт хука пользователей
 
 export const useQuizes = () => {
     const [quizzes, setQuizzes] = useState([]);
-    const [categories, setCategories] = useState([]); // Добавляем состояние для категорий
+    const [categories, setCategories] = useState([]);
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState(null);
-    const [categoryLoading, setCategoryLoading] = useState(false); // Для загрузки категорий
+    const [categoryLoading, setCategoryLoading] = useState(false);
+    
+    // Используем хук пользователей для получения метода GetUserIdFromJWT
+    const { GetUserIdFromJWT, getUserInfo } = useUsers();
 
     // Метод для получения всех категорий
     const getAllCategories = async () => {
@@ -130,7 +133,24 @@ export const useQuizes = () => {
         }
     };
 
-    // Остальные существующие методы остаются без изменений...
+    // Метод для проверки прав доступа к статистике квиза
+    const checkQuizOwnership = async (quizId, token) => {
+        try {
+            const quiz = await getQuizById(quizId, token);
+            const userId = GetUserIdFromJWT ? GetUserIdFromJWT(token) : null;
+            
+            if (!userId) {
+                console.error('Не удалось получить ID пользователя из токена');
+                return false;
+            }
+            
+            return quiz.authorId === userId;
+        } catch (error) {
+            console.error('Ошибка проверки прав доступа:', error);
+            return false;
+        }
+    };
+
     const getQuizById = async (id, token) => {
         setLoading(true);
         setError(null);
@@ -235,10 +255,11 @@ export const useQuizes = () => {
         deleteQuiz,
         getQuizQuestions,
         connectToQuizByCode,
+        checkQuizOwnership, // Добавляем метод проверки прав
         
         // Состояния
         quizzes,
-        categories, // Добавляем категории в возвращаемое значение
+        categories,
         loading,
         categoryLoading,
         error
