@@ -18,6 +18,7 @@ export const useQuizes = () => {
 
         try {
             const categoriesData = await categoryApi.getAllCategories();
+            console.log('Загруженные категории:', categoriesData); // Добавим лог
             setCategories(categoriesData);
             return categoriesData;
         } catch (err) {
