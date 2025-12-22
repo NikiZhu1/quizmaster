@@ -28,6 +28,21 @@ export const AuthenticateUser = async (values, isRegistration) => {
     }
 };
 
+export const RefreshUserToken = async (token) => {
+  try {
+        const response = await apiClient.post(`/User/refresh`, {
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      });
+        return response.data;
+    }
+    catch (error) {
+        console.error(`Ошибка при обновлении токена пользователя`, error);
+        throw error;
+    }
+}
+
 export const GetUserIdFromJWT = (token) => {
     try {
         const decoded = jwtDecode(token);
@@ -115,9 +130,7 @@ export const getUserQuizzes = async (token, userId) => {
     }
   };
 
-export const updateUserProfile = async (userId, userData) => {
-    const token = Cookies.get('token');
-    
+export const updateUserData = async (token, userId, userData) => {
     if (!token) {
         throw new Error('Требуется авторизация');
     }

@@ -2,6 +2,7 @@ import { useState, useCallback, useRef, useEffect } from 'react';
 import * as api from '../API methods/attemptMethods.jsx';
 import * as quizApi from '../API methods/quizMethods.jsx';
 import Cookies from 'js-cookie';
+import { useUsers } from './useUsers.jsx';
 
 export const useQuizAttempt = () => {
   const [attempt, setAttempt] = useState(null);
@@ -14,6 +15,7 @@ export const useQuizAttempt = () => {
   const [timeLeft, setTimeLeft] = useState(null);
   const [visitedQuestions, setVisitedQuestions] = useState(new Set());
   const timerRef = useRef(null);
+  const { checkToken } = useUsers();
 
   // Ключи для localStorage
   const ATTEMPT_STORAGE_KEY = 'current_quiz_attempt';
@@ -122,11 +124,10 @@ export const useQuizAttempt = () => {
   };
 
   // Начать попытку
-  const startQuizAttempt = async (quizId, accessKey = null) => {
+  const startQuizAttempt = async (token, quizId, accessKey = null) => {
     setLoading(true);
     setError(null);
 
-    const token = Cookies.get('token');
     try {
       // Начинаем попытку
       const attemptData = await api.startAttempt(token, quizId, accessKey);
@@ -182,12 +183,28 @@ export const useQuizAttempt = () => {
     }
   };
 
-  // Получить данные попытки
-  const getAttemptById = async (attemptId, accessKey = null) => {
+  /** Полуить данные попытки */
+  const getAttemptById = async (attemptId) => {
     setLoading(true);
     setError(null);
 
-    const token = Cookies.get('token');
+    try {
+      const attemptData = api.getAttemptById(attemptId)
+      return attemptData;
+    } 
+    catch (err) {
+      setError(err.message);
+      throw err;
+    } 
+    finally {
+      setLoading(false);
+    }
+  }
+
+  // Получить ВСЕ данные попытки
+  const getAttemptByIdFull = async (attemptId, accessKey = null, token) => {
+    setLoading(true);
+    setError(null);
 
     try {
       // Получаем данные
@@ -245,6 +262,24 @@ export const useQuizAttempt = () => {
     }
   };
 
+  // Получить ответы попытки
+  const getAttemptAnswers = async (attemptId, attemptData = null, token, guestSessionId) => {
+    setLoading(true);
+    setError(null);
+
+    try {
+      const attemptAnswers = api.getAttemptAnswers(attemptId, attemptData, token, guestSessionId)
+      return attemptAnswers;
+    } 
+    catch (err) {
+      setError(err.message);
+      throw err;
+    } 
+    finally {
+      setLoading(false);
+    }
+  }
+
   // Проверить и восстановить активную попытку
   const checkAndRestoreAttempt = async (quizId, accessKey = null) => {
     const storedAttempt = loadAttemptFromStorage();
@@ -252,7 +287,7 @@ export const useQuizAttempt = () => {
     if (storedAttempt && storedAttempt.quizId === parseInt(quizId)) {
       // Восстанавливаем существующую попытку
       try {
-        await getAttemptById(storedAttempt.id, accessKey);
+        await getAttemptByIdFull(storedAttempt.id, accessKey);
         return true; // Попытка восстановлена
       } catch (error) {
         console.warn('Не удалось восстановить попытку:', error);
@@ -263,6 +298,24 @@ export const useQuizAttempt = () => {
     }
     return false; // Нет сохраненной попытки для этого квиза
   };
+
+  /** Получение лидерборда - по одной лучше попытке каждого пользователя */
+  const getLeaderboard = async (quizId, token, guestSessionId = null) => {
+    setLoading(true);
+    setError(null);
+
+    try {
+      const leaderboardData = api.getLeaderboard(quizId, token, guestSessionId)
+      return leaderboardData;
+    } 
+    catch (err) {
+      setError(err.message);
+      throw err;
+    } 
+    finally {
+      setLoading(false);
+    }
+  }
 
   // Таймер обратного отсчета
   const initializeTimer = (seconds) => {
@@ -333,6 +386,8 @@ export const useQuizAttempt = () => {
     if (!attempt) return null;
     
     setLoading(true);
+
+    const token = await checkToken()
     
     try {
       // Формируем ответы в формате для API
@@ -361,7 +416,7 @@ export const useQuizAttempt = () => {
       console.log('Ответов сформировано:', formattedAnswers.length);
       
       // Завершаем попытку
-      const result = await api.finishAttempt(attempt.id, formattedAnswers);
+      const result = await api.finishAttempt(token, attempt.id, formattedAnswers);
       
       // Очищаем 
       clearAttemptStorage();
@@ -476,7 +531,10 @@ useEffect(() => {
     // Методы
     startQuizAttempt,
     getAttemptById,
+    getAttemptByIdFull,
     checkAndRestoreAttempt,
+    getLeaderboard,
+    getAttemptAnswers,
     saveAnswer,
     goToNextQuestion,
     goToPreviousQuestion,

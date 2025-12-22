@@ -11,15 +11,17 @@ import HeaderComponent from '../components/HeaderComponent';
 //Методы
 import { useUsers } from '../hooks/useUsers.jsx';
 import QuizCard from '../components/quizCard.jsx';
+import { useIsPortrait } from '../hooks/usePortain.jsx';
 
 const { Title } = Typography;
 
 export default function MyQuizzes() {
-    const {GetUserIdFromJWT, getUserQuizzes} = useUsers();
+    const {GetUserIdFromJWT, getUserQuizzes, checkToken} = useUsers();
     const [quizzes, setQuizzes] = useState([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
     const navigate = useNavigate();
+    const isPortrait = useIsPortrait();
 
     useEffect(() => {
         loadQuizzes();
@@ -29,7 +31,7 @@ export default function MyQuizzes() {
         setLoading(true);
         setError(null);
         try {
-            const token = Cookies.get('token');
+            const token = await checkToken();
             if (!token) {
                 message.warning('Для просмотра своих квизов необходимо войти в аккаунт');
                 navigate('/login');
@@ -57,9 +59,7 @@ export default function MyQuizzes() {
 
     return (
         <Layout>
-            <HeaderComponent />
-
-            <div style={{ padding: "24px 40px" }}>
+            <div style={{ padding: isPortrait ? '16px 16px' : '16px 24px' }}>
                 <Card 
                     style={{ 
                         marginBottom: 24,

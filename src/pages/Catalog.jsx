@@ -5,11 +5,14 @@ import {
 } from 'antd';
 import { useNavigate } from 'react-router-dom';
 import Cookies from 'js-cookie';
+
 import { KeyOutlined } from '@ant-design/icons';
 
 // Компоненты
 import QuizCard from '../components/quizCard';
 import HeaderComponent from '../components/HeaderComponent';
+import { useIsPortrait } from '../hooks/usePortain';
+import { useUsers } from '../hooks/useUsers';
 
 // Методы
 import { useQuizes } from '../hooks/useQuizes';
@@ -17,6 +20,7 @@ import { getCategoryName, formatCategoriesFromApi } from '../utils/categoryUtils
 
 import { Form, Input, Alert, Modal } from 'antd';
 import { InfoCircleOutlined, LinkOutlined } from '@ant-design/icons';
+import { usePrivateQuizAccess } from '../hooks/usePrivateQuizAccess';
 
 const { Title } = Typography;
 const { Option } = Select;
@@ -29,11 +33,24 @@ export default function Catalog() {
     const [categoriesLoading, setCategoriesLoading] = useState(false);
     const [availableCategories, setAvailableCategories] = useState([]);
     const [showPrivateKeyModal, setShowPrivateKeyModal] = useState(false);
+    const isPortrait = useIsPortrait();
+    const [isAuthenticated, setIsAuthenticated] = useState(false);
+    const { checkToken } = useUsers()
 
     useEffect(() => {
+        checkAuth();
         loadQuizzes();
         loadCategories();
     }, []);
+
+    const checkAuth = async () => {
+        const token = await checkToken();
+        if (!token) {
+            setIsAuthenticated(false);
+        } else {
+            setIsAuthenticated(true);
+        }
+    }
 
     // Преобразуем категории в нужный формат
     useEffect(() => {
@@ -117,8 +134,7 @@ export default function Catalog() {
     };
 
     const handleCreateQuiz = () => {
-        const token = Cookies.get('token');
-        if (!token) {
+        if (!isAuthenticated) {
             message.warning('Для создания квиза необходимо войти в аккаунт');
         } else {
             navigate('/newquiz');
@@ -126,8 +142,7 @@ export default function Catalog() {
     };
 
     const handleMyQuizzes = () => {
-        const token = Cookies.get('token');
-        if (!token) {
+        if (!isAuthenticated) {
             message.warning('Для просмотра своих квизов необходимо войти в аккаунт');
         } else {
             navigate('/myquizzes');
@@ -178,11 +193,9 @@ export default function Catalog() {
 
     return (
         <Layout>
-            <HeaderComponent />
-
             <Card 
                 style={{ 
-                    margin: '16px 40px',
+                    margin: '16px 16px',
                     borderRadius: '8px',
                     backgroundColor: '#f0f2f5'
                 }}
@@ -193,8 +206,8 @@ export default function Catalog() {
                         Создание квизов: Вы можете создать свои уникальные викторины и отслеживать статистику прохождения
                     </Typography.Text>
                     <Space>
-                        <Button type="primary" onClick={handleCreateQuiz}>Создать квиз</Button>
-                        <Button onClick={handleMyQuizzes}>Мои квизы</Button>
+                        <Button size='large' type="primary" onClick={handleCreateQuiz}>Создать квиз</Button>
+                        <Button size='large' onClick={handleMyQuizzes}>Мои квизы</Button>
                     </Space>
                 </Flex>
             </Card>
@@ -233,7 +246,7 @@ export default function Catalog() {
                 </Flex>
             </Card>
 
-            <div style={{ padding: "0px 40px" }}>
+            <div style={{ padding: isPortrait ? '0px 16px' : '0px 24px' }}>
                 <Flex justify="space-between" align="center" wrap="wrap" gap="middle" style={{ marginBottom: 24 }}>
                     <Title level={2} style={{ margin: 0 }}>
                         Все квизы
@@ -322,6 +335,7 @@ const PrivateQuizKeyModal = ({ visible, onClose }) => {
     const [form] = Form.useForm();
     const navigate = useNavigate();
     const { connectToQuizByCode } = useQuizes();
+    const { setSavedAccessKey } = usePrivateQuizAccess();
 
     // Автофокус при открытии
     useEffect(() => {
@@ -348,7 +362,7 @@ const PrivateQuizKeyModal = ({ visible, onClose }) => {
 
             // Используем метод подключения по коду
             const quizInfo = await connectToQuizByCode(key.toUpperCase());
-            
+            setSavedAccessKey(quizInfo.quizId, key)
             message.success('Подключение успешно!');
             onClose();
             

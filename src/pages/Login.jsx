@@ -8,10 +8,36 @@ import { useUsers } from '../hooks/useUsers.jsx';
 
 // Компоненты
 import AuthForm from '../components/AuthForm.jsx';
+import { usePrivateQuizAccess } from '../hooks/usePrivateQuizAccess.jsx';
 
 function Login() {
     const navigate = useNavigate();
-    const { loading, loginUser, GetUserIdFromJWT, getUserInfo} = useUsers();
+    const { loading, loginUser, GetUserIdFromJWT, getUserInfo, checkToken, getUserQuizzes} = useUsers();
+    const { setSavedAccessKey } = usePrivateQuizAccess();
+
+    const saveAccessKeys = async (token, userId) => {
+        try {
+            const quizzes = await getUserQuizzes(token, userId);
+            if (!Array.isArray(quizzes)) return;
+
+            const privateQuizzes = quizzes.filter(
+                quiz => quiz.privateAccessKey
+            );
+
+            for (const quiz of privateQuizzes) {
+                try {
+                    setSavedAccessKey(quiz.id, quiz.privateAccessKey);
+                } catch (err) {
+                    console.warn(
+                        `Не удалось сохранить ключ для квиза ${quiz.id}`,
+                        err
+                    );
+                }
+            }
+        } catch (error) {
+            console.error('Ошибка при сохранении ключей доступа к приватным квизам:', error);
+        }
+    };
 
     // Авторизация
     const onFinish = async (values) => {
@@ -19,7 +45,7 @@ function Login() {
             await loginUser(values, false);
             
             // Получаем информацию о пользователе для приветствия
-            const token = Cookies.get('token');
+            const token = await checkToken();
             const userId = GetUserIdFromJWT(token);
             let username = 'Пользователь';
             
@@ -32,6 +58,7 @@ function Login() {
             
             // Перенаправляем на главную страницу
             navigate('/');
+            await saveAccessKeys(token, userId)
         } catch (error) {
             console.error('Ошибка входа:', error);
             message.error(error.response?.data?.message || 'Неверный логин или пароль');

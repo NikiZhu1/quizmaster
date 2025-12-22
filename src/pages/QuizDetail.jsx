@@ -30,10 +30,12 @@ import HeaderComponent from '../components/HeaderComponent';
 
 // Методы
 import { useQuizes } from '../hooks/useQuizes';
-import { getLeaderboard } from '../API methods/attemptMethods';
 import { useUsers } from '../hooks/useUsers';
 import { useQuestions } from '../hooks/useQuestions';
+import { useIsPortrait } from '../hooks/usePortain';
+import { useQuizAttempt } from '../hooks/useQuizAttempt';
 import { usePrivateQuizAccess } from '../hooks/usePrivateQuizAccess';
+import { GetUserIdFromJWT, getUserQuizzes } from '../API methods/usersMethods';
 
 const { Title, Text, Paragraph } = Typography;
 const { Panel } = Collapse;
@@ -45,8 +47,10 @@ const QuizDetail = () => {
     const navigate = useNavigate();
     const location = useLocation();
     const { getQuizById, connectToQuizByCode } = useQuizes();
-    const { getUserInfo, userPicture } = useUsers();
+    const { getUserInfo, userPicture, checkToken } = useUsers();
     const { pluralize } = useQuestions();
+    const { getLeaderboard } = useQuizAttempt();
+    const isPortrait = useIsPortrait();
     
     // Основные состояния
     const [quiz, setQuiz] = useState(null);
@@ -56,6 +60,7 @@ const QuizDetail = () => {
     const [loadingAuthor, setLoadingAuthor] = useState(false);
     const [leaderboardLoading, setLeaderboardLoading] = useState(false);
     const [isAuthenticated, setIsAuthenticated] = useState(false);
+    const [sessionId, setSessionId] = useState(null);
     
     // Состояния для приватных квизов
     const [accessKeyInput, setAccessKeyInput] = useState('');
@@ -70,37 +75,30 @@ const QuizDetail = () => {
         grantAccess, 
         revokeAccess,
         copyAccessKey
-    } = usePrivateQuizAccess(quizId);
+    } = usePrivateQuizAccess();
     
     // Вкладки
     const [activeTab, setActiveTab] = useState('overview');
-    const [isFavorite, setIsFavorite] = useState(false);
     const [userId, setUserId] = useState(null);
 
     // Проверяем авторизацию и загружаем данные
     useEffect(() => {
-        const token = Cookies.get('token');
-        setIsAuthenticated(!!token);
-        
-        if (token) {
-            try {
-                const userid = parseInt(token.split('.')[1]); // Упрощенное получение ID
-                setUserId(userid);
-            } catch (error) {
-                console.error('Ошибка получения ID пользователя:', error);
-            }
-        }
-        
+        checkAuth();
         loadQuizDetails();
-    }, [quizId, location.pathname]);
+    }, [quizId]);
 
-    // // Проверяем наличие accessKey в URL
-    // useEffect(() => {
-    //     const urlAccessKey = searchParams.get('accessKey');
-    //     if (urlAccessKey && quiz && !quiz.isPublic && !hasAccess) {
-    //         handleGrantAccess(urlAccessKey);
-    //     }
-    // }, [searchParams, quiz, hasAccess]);
+    const checkAuth = async () => {
+        const token = await checkToken();
+        console.log("токен", token)
+        if (token) {
+            // const userIdData = GetUserIdFromJWT(token);
+            // console.log("CERRFFF", userIdData)
+            setIsAuthenticated(true);
+            // setUserId(userIdData)
+        } else {
+            setIsAuthenticated(false);
+        }
+    }
 
     const loadAuthorInfo = async (userId) => {
         if (!userId) {
@@ -123,11 +121,32 @@ const QuizDetail = () => {
     const loadQuizDetails = async () => {
     setLoading(true);
     try {
-        const token = Cookies.get('token');
+        const token = await checkToken();
+        let myAccessKey
+
+        const userIdData = GetUserIdFromJWT(token);
+        if (userIdData) {
+            const quizzes = await getUserQuizzes(token, userIdData);
+            const quiz = quizzes.find(q => q.id == quizId);
+            // const quiz = await getQuizById(quizId, token);
+            console.log("Q ID", userIdData  )
+            console.log("НАЙДЕНЫЙ", quiz)
+
+            if (quiz && userIdData == quiz.authorId) {
+                myAccessKey = quiz.privateAccessKey
+            }
+        } 
         
+        // if (quiz) {
+            
+        //     myAccessKey = quiz.privateAccessKey
+        // }
+
+        console.log("ЭТО МОЙ КВИЗ БЛЯТЬ ПУСТИТЕ", myAccessKey)
+
         // ШАГ 1: Проверяем, есть ли уже сохраненный ключ в хуке или в localStorage
         // В вашем хуке usePrivateQuizAccess ключ лежит в переменной accessKey
-        const currentKey = accessKey || localStorage.getItem(`quiz_access_${quizId}`);
+        const currentKey = myAccessKey || accessKey || localStorage.getItem(`quiz_access_${quizId}`);
         
         let quizData;
         
@@ -198,16 +217,17 @@ const QuizDetail = () => {
     const loadLeaderboard = async () => {
         setLeaderboardLoading(true);
         try {
-            const token = Cookies.get('token');
+            const token = await checkToken();
             const guestSessionId = Cookies.get('guestSessionId');
+            setSessionId(guestSessionId)
             
             // Для приватных квизов передаем ключ доступа
             let leaderboardData;
-            if (quiz && !quiz.isPublic && accessKey) {
+            if (quiz && !quiz.isPublic) {
                 // Используем специальный endpoint или параметр
-                leaderboardData = await getLeaderboard(quizId, guestSessionId, accessKey);
+                leaderboardData = await getLeaderboard(quizId, token, guestSessionId);
             } else {
-                leaderboardData = await getLeaderboard(quizId, guestSessionId);
+                leaderboardData = await getLeaderboard(quizId, token, guestSessionId);
             }
             
             console.log('Лидерборд загружен:', leaderboardData);
@@ -410,10 +430,9 @@ const QuizDetail = () => {
         },
     ];
 
-    if (loading || accessLoading) {
+    if (loading) {
         return (
             <Layout>
-                <HeaderComponent />
                 <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '60vh' }}>
                     <Spin size="large" tip="Загрузка информации о квизе..." />
                 </div>
@@ -424,7 +443,6 @@ const QuizDetail = () => {
     if (!quiz) {
         return (
             <Layout>
-                <HeaderComponent />
                 <div style={{ padding: '40px', maxWidth: '800px', margin: '0 auto' }}>
                     <Alert
                         title="Квиз не найден"
@@ -543,38 +561,36 @@ const QuizDetail = () => {
             );
         }
 
-        if (!quiz.isPublic && !hasAccess) {
-            return (
-                <Alert
-                    message="Приватный квиз"
-                    description={
-                        <Space direction="vertical" size="small">
-                            <Text>Для доступа к этому квизу требуется специальный ключ.</Text>
-                            <Button 
-                                type="dashed" 
-                                size="small"
-                                icon={<KeyOutlined />}
-                                onClick={() => setShowAccessModal(true)}
-                            >
-                                Ввести ключ доступа
-                            </Button>
-                        </Space>
-                    }
-                    type="warning"
-                    showIcon
-                    style={{ marginBottom: 16 }}
-                />
-            );
-        }
+        // if (!quiz.isPublic && !hasAccess) {
+        //     return (
+        //         <Alert
+        //             message="Приватный квиз"
+        //             description={
+        //                 <Space direction="vertical" size="small">
+        //                     <Text>Для доступа к этому квизу требуется специальный ключ.</Text>
+        //                     <Button 
+        //                         type="dashed" 
+        //                         size="small"
+        //                         icon={<KeyOutlined />}
+        //                         onClick={() => setShowAccessModal(true)}
+        //                     >
+        //                         Ввести ключ доступа
+        //                     </Button>
+        //                 </Space>
+        //             }
+        //             type="warning"
+        //             showIcon
+        //             style={{ marginBottom: 16 }}
+        //         />
+        //     );
+        // }
 
         return null;
     };
 
     return (
         <Layout>
-            <HeaderComponent />
-            
-            <div style={{ padding: '24px', maxWidth: '1200px', margin: '0 auto', width: '100%' }}>
+            <div style={{ padding: '16px', maxWidth: '1200px', margin: '0 auto', width: '100%' }}>
                 {/* Кнопка назад */}
                 <Button 
                     type="link" 
@@ -595,6 +611,9 @@ const QuizDetail = () => {
                         borderRadius: 12,
                         boxShadow: '0 2px 8px rgba(0,0,0,0.06)'
                     }}
+                    styles={{
+                        body: { padding: isPortrait && 16 }
+                    }}
                 >
                     <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
                         <div>
@@ -614,6 +633,7 @@ const QuizDetail = () => {
                                     </Title>
                                 </Flex>
                                 
+                                {/* Предупреждение, что квиз удалён */}
                                 {quiz.isDeleted && 
                                     <Alert
                                         title="Квиз удалён"
@@ -647,13 +667,23 @@ const QuizDetail = () => {
                                 }
                             </Space>
                         </div>
-
-                        {/* Кнопка начала прохождения */}
-                        <Flex justify="center">
-                            {renderStartButton()}
-                        </Flex>
                         
-                        {/* Информационные карточки */}
+                        {/* Начать прохождение */}
+                        {!quiz.isDeleted && <Button
+                                type="primary"
+                                size="large"
+                                icon={<PlayCircleOutlined />}
+                                onClick={handleStartQuiz}
+                                style={{ 
+                                    // height: '56px', 
+                                    // padding: '0 48px',
+                                    // fontSize: '18px',
+                                    boxShadow: '0 4px 12px rgba(24, 144, 255, 0.4)'
+                                }}
+                            >
+                                Начать прохождение
+                            </Button>}
+                        
                         <Row gutter={[16, 16]}>
                             {/* Информация об авторе */}
                             <Col xs={24} sm={12} md={8}>
@@ -748,129 +778,88 @@ const QuizDetail = () => {
                     </div>
                 </Card>
 
-                {/* Вкладки */}
-                <Tabs activeKey={activeTab} onChange={setActiveTab}>
-                    <TabPane 
-                        key="overview"
-                    >
-                        {/* Лидерборд */}
-                        <Card
-                            title={
-                                <Space>
-                                    <TrophyOutlined style={{ color: '#faad14', fontSize: '20px' }} />
-                                    <Title level={4} style={{ margin: 0 }}>
-                                        Таблица лидеров
-                                    </Title>
-                                    <Tag icon={<TeamOutlined />} color="gold">
-                                        {leaderboard.length} участник{pluralize(leaderboard.length)}
-                                    </Tag>
-                                </Space>
-                            }
-                            style={{
-                                borderRadius: 12,
-                                boxShadow: '0 2px 8px rgba(0,0,0,0.06)',
-                                marginTop: 16
+                {/* Лидерборд */}
+                <Card
+                    title={
+                        <Space>
+                            <TrophyOutlined style={{ color: '#faad14', fontSize: '20px' }} />
+                            <Title level={4} style={{ margin: 0 }}>
+                                Таблица лидеров
+                            </Title>
+                            <Tag icon={<TeamOutlined />} color="gold">
+                                {leaderboard.length} участник{pluralize(leaderboard.length)}
+                            </Tag>
+                        </Space>
+                    }
+                    style={{
+                        borderRadius: 12,
+                        boxShadow: '0 2px 8px rgba(0,0,0,0.06)',
+                    }}
+                    styles={{
+                        body: { padding: 16 }
+                    }}
+                    extra={
+                        <Button 
+                            type="link" 
+                            onClick={loadLeaderboard}
+                            loading={leaderboardLoading}
+                            icon={<TrophyOutlined />}
+                        >
+                            Обновить
+                        </Button>
+                    }
+                >
+                    {!sessionId ? (
+                        <Alert
+                            title="Таблица лидеров недоступна"
+                            description="Чтобы увидеть таблицу лидеров, необходимо сначала пройти этот квиз."
+                            type="warning"
+                            showIcon
+                            icon={<LockOutlined />}
+                        />
+                    ) : (leaderboard.length > 0) ? (
+                        <Table
+                            columns={leaderboardColumns}
+                            dataSource={leaderboard}
+                            loading={leaderboardLoading}
+                            rowKey={(record, index) => record.id || index}
+                            pagination={{
+                                pageSize: 10,
+                                // showSizeChanger: true,
+                                // showQuickJumper: true,
+                                showTotal: (total, range) => 
+                                    `${range[1]} из ${total} записей`
                             }}
-                            extra={
-                                <Button 
-                                    type="link" 
-                                    onClick={loadLeaderboard}
-                                    loading={leaderboardLoading}
-                                    icon={<TrophyOutlined />}
-                                >
-                                    Обновить
-                                </Button>
-                            }
-                        >
-                            {leaderboard.length > 0 ? (
-                                <Table
-                                    columns={leaderboardColumns}
-                                    dataSource={leaderboard}
-                                    loading={leaderboardLoading}
-                                    rowKey={(record, index) => record.id || index}
-                                    pagination={{
-                                        pageSize: 10,
-                                        showQuickJumper: true,
-                                        showTotal: (total, range) => 
-                                            `${range[0]}-${range[1]} из ${total} записей`
-                                    }}
-                                    scroll={{ x: true }}
-                                    style={{ marginTop: 16 }}
-                                />
-                            ) : (
-                                <Alert
-                                    title={quiz.isPublic ? "Таблица лидеров пуста" : "Таблица лидеров недоступна"}
-                                    description={
-                                        quiz.isPublic 
-                                            ? "Будьте первым, кто пройдет этот квиз и попадет в историю!"
-                                            : "Таблица лидеров доступна только участникам с доступом к квизу"
-                                    }
-                                    type="info"
-                                    showIcon
-                                    icon={<TrophyOutlined />}
-                                    action={
-                                        quiz.isPublic && (
-                                            <Button 
-                                                type="primary" 
-                                                onClick={handleStartQuiz}
-                                                disabled={!isAuthenticated}
-                                                size="small"
-                                            >
-                                                Стать первым
-                                            </Button>
-                                        )
-                                    }
-                                />
-                            )}
-                            <div style={{ 
-                                marginTop: 24, 
-                                padding: 16, 
-                                backgroundColor: '#fafafa', 
-                                borderRadius: 8,
-                                border: '1px dashed #d9d9d9'
-                            }}>
-                                <Space orientation="vertical" size="small">
-                                    <Text strong>Как попасть в таблицу лидеров?</Text>
-                                    <Text type="secondary">
-                                        1. Пройдите квиз полностью<br/>
-                                        2. Наберите как можно больше правильных ответов<br/>
-                                        3. Постарайтесь пройти квиз быстрее других<br/>
-                                        4. Ваш результат автоматически появится в таблице
-                                    </Text>
-                                </Space>
-                            </div>
-                        </Card>
-                    </TabPane>
-                    
-                    {isOwner && (
-                        <TabPane 
-                            tab={
-                                <span>
-                                    <BarChartOutlined />
-                                    Статистика
-                                </span>
-                            } 
-                            key="statistics"
-                        >
-                            <Card style={{ marginTop: 16 }}>
-                                <Alert
-                                    message="Статистика квиза"
-                                    description="Для просмотра детальной статистики перейдите в специальный раздел"
-                                    type="info"
-                                    showIcon
-                                    action={
-                                        <Button 
-                                            type="primary" 
-                                            onClick={() => navigate(`/quiz/${quizId}/statistics`)}
-                                        >
-                                            Перейти к статистике
-                                        </Button>
-                                    }
-                                />
-                            </Card>
-                        </TabPane>
+                            scroll={{ x: true }}
+                            style={{ marginTop: 16 }}
+                        />
+                    ) : (
+                        <Alert
+                            title="Таблица лидеров пуста"
+                            description="Будьте первым, кто пройдет этот квиз и попадет в историю! Пройдите квиз, чтобы ваш результат появился здесь."
+                            type="info"
+                            showIcon
+                            icon={<TrophyOutlined />}
+                        />
                     )}
-                </Tabs>
+                    <div style={{ 
+                        marginTop: 24, 
+                        padding: 16, 
+                        backgroundColor: '#fafafa', 
+                        borderRadius: 8,
+                        border: '1px dashed #d9d9d9'
+                    }}>
+                        <Space orientation="vertical" size="small">
+                            <Text strong>Как попасть в таблицу лидеров?</Text>
+                            <Text type="secondary">
+                                1. Пройдите квиз полностью<br/>
+                                2. Наберите как можно больше правильных ответов<br/>
+                                3. Постарайтесь пройти квиз быстрее других<br/>
+                                4. Ваш результат автоматически появится в таблице
+                            </Text>
+                        </Space>
+                    </div>
+                </Card>
             </div>
 
             {/* Модальное окно для ввода ключа доступа */}

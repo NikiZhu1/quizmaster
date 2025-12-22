@@ -53,19 +53,53 @@ export const useUsers = () => {
         }
     }
 
+    const isTokenExpired = (token) => {
+    try {
+        const payload = JSON.parse(atob(token.split('.')[1]));
+        return payload.exp * 1000 < Date.now() - 1000 * 60 * 20; //Запас 20 минут
+    } catch {
+        return true;
+    }
+    };
+
+    const checkToken = async () => {
+        const token = Cookies.get('token');
+        if (!token) return null;
+
+        // console.log('Токен истек?', isTokenExpired(token));
+        // console.log('Срок действия:', new Date(1766434964 * 1000).toLocaleString());
+
+        if (!isTokenExpired(token)) {
+            return token;
+        }
+
+        try {
+            const response = await api.RefreshUserToken(token);
+            const newToken = response.token;
+
+            setTokenToCookie(newToken);
+            console.warn("Токен обновлён")
+            return newToken;
+        } catch (error) {
+            Cookies.remove('token');
+            return null;
+        }
+    }
+
     const setTokenToCookie = (token) => {
         Cookies.set('token', token, { expires: 1, secure: true, sameSite: 'Strict' });
     }
 
     // Функция выхода
     const logoutUser = () => {
+        localStorage.clear();
         Cookies.remove('token');
         Cookies.remove('guestSessionId');
         Cookies.remove('refreshToken');
         Cookies.remove('guest_session_id');
     };
 
-    // Получение информации о пользователе
+    /**  Получение информации о пользователе */
     const getUserInfo = async (userId) => {
         if (!userId) return null;
 
@@ -119,7 +153,8 @@ export const useUsers = () => {
         }
     };
 
-    const changePassword = async (userId, oldPassword, newPassword) => {
+    /** Сменить пароль */
+    const changePassword = async (token, userId, oldPassword, newPassword) => {
         setLoading(true);
         setError(null);
         
@@ -129,7 +164,7 @@ export const useUsers = () => {
                 password: newPassword
             };
             
-            const response = await api.updateUserProfile(userId, updateData);
+            const response = await api.updateUserData(token, userId, updateData);
             return response;
         } catch (err) {
             console.error('Ошибка при смене пароля:', err);
@@ -143,6 +178,31 @@ export const useUsers = () => {
         }
     };
 
+    /** Сменить логин */
+    const changeUsername = async (token, userId, newUsername) => {
+        setLoading(true);
+        setError(null);
+        
+        try {
+            const updateData = {
+                userName: newUsername
+            };
+            
+            const response = await api.updateUserData(token, userId, updateData);
+            return response;
+        } catch (err) {
+            console.error('Ошибка при смене логина:', err);
+            
+            // Пробрасываем ошибку дальше для обработки в компоненте
+            if (err.response?.data) {
+                throw new Error(err.response.data);
+            }
+            throw err;
+        } finally {
+            setLoading(false);
+        }
+    }
+
     return {
         loading,
         error,
@@ -150,10 +210,12 @@ export const useUsers = () => {
         loginUser,
         registerUser,
         logoutUser,
+        checkToken,
         getUserInfo,
         getUserByUsername,
         GetUserIdFromJWT,
         getUserQuizzes,
-        changePassword
+        changePassword,
+        changeUsername
     };
 };

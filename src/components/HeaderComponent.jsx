@@ -26,15 +26,20 @@ const HeaderStyle = {
 const HeaderComponent = () => {
   const navigate = useNavigate();
   const location = useLocation();
+  const { checkToken } = useUsers();
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [activeTab, setActiveTab] = useState('home');
 
   // Проверяем наличие токена и декодируем его при загрузке
   useEffect(() => {
-     const token = Cookies.get('token');
+     checkAuthentication()
+  }, []);
+
+  const checkAuthentication = async () => {
+    const token = await checkToken();
      if (token)
       setIsAuthenticated(true);
-  }, []);
+  }
 
   // Определяем активную вкладку на основе текущего пути
   useEffect(() => {

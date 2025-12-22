@@ -9,14 +9,14 @@ import {
     GlobalOutlined, AppstoreOutlined
 } from '@ant-design/icons';
 import dayjs from 'dayjs';
-import Cookies from 'js-cookie';
-import HeaderComponent from '../components/HeaderComponent';
 import apiClient from '../API methods/.APIclient';
 import { 
     getCategoryName, 
     getCategoryColor,
     formatCategoriesFromApi 
 } from '../utils/categoryUtils';
+import { useUsers } from '../hooks/useUsers';
+import { usePrivateQuizAccess } from '../hooks/usePrivateQuizAccess';
 
 const { Content } = Layout;
 const { Title, Text } = Typography;
@@ -26,6 +26,9 @@ const { Option } = Select;
 export default function CreateQuiz() {
     const [form] = Form.useForm();
     const navigate = useNavigate();
+    const [quizId, setQuizId] = useState();
+    const { checkToken } = useUsers();
+    const { setSavedAccessKey } = usePrivateQuizAccess();
     const [loading, setLoading] = useState(false);
     const [hasTimeLimit, setHasTimeLimit] = useState(false);
     const [categories, setCategories] = useState([]);
@@ -41,7 +44,7 @@ export default function CreateQuiz() {
         try {
             console.log('Загрузка категорий...');
             
-            const token = Cookies.get('token');
+            const token = await checkToken();
             const response = await apiClient.get('/Category', {
                 headers: token ? { 'Authorization': `Bearer ${token}` } : {}
             });
@@ -75,7 +78,7 @@ export default function CreateQuiz() {
         setLoading(true);
         
         try {
-            const token = Cookies.get('token');
+            const token = await checkToken();
             
             if (!token) {
                 message.error('Требуется авторизация');
@@ -126,6 +129,9 @@ export default function CreateQuiz() {
             
             // Перенаправляем на страницу создания вопросов
             if (response.data?.id) {
+                setQuizId(response.data.id);
+                if (response.data.privateAccessKey)
+                    setSavedAccessKey(response.data.id, response.data.privateAccessKey);
                 navigate(`/quiz/${response.data.id}/questions`);
             } else {
                 navigate('/');
@@ -153,8 +159,6 @@ export default function CreateQuiz() {
 
     return (
         <Layout style={{ minHeight: '100vh' }}>
-            <HeaderComponent />
-            
             <Content style={{ padding: '24px', maxWidth: '800px', margin: '0 auto', width: '100%' }}>
                 <Card>
                     <Space direction="vertical" size="small" style={{ width: '100%' }}>

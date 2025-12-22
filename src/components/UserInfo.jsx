@@ -12,7 +12,7 @@ const { Text } = Typography;
 
 const UserInfo = () => {
   const navigate = useNavigate();
-  const { GetUserIdFromJWT, getUserInfo, logoutUser, userPicture } = useUsers();
+  const { GetUserIdFromJWT, getUserInfo, logoutUser, userPicture, checkToken } = useUsers();
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [userName, setUserName] = useState('');
   const [userId, setUserId] = useState(null);
@@ -24,7 +24,7 @@ const UserInfo = () => {
   }, []);
 
   const checkAuthentication = async () => {
-    const token = Cookies.get('token');
+    const token = await checkToken();
     
     if (token) {
       try {
@@ -32,8 +32,8 @@ const UserInfo = () => {
         const userid = GetUserIdFromJWT(token);
         const user = await getUserInfo(userid);
   
-        setUserName(user.name || 'Пользователь');
-        setUserId(user.id);
+        setUserName(user?.name || 'Пользователь');
+        setUserId(user?.id);
       } catch (error) {
         console.error('Ошибка декодирования токена:', error);
         handleLogout();

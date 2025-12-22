@@ -2,13 +2,13 @@ import React, { useState, useEffect, useCallback } from 'react';
 import * as quizApi from '../API methods/quizMethods.jsx';
 import Cookies from 'js-cookie';
 
-export const usePrivateQuizAccess = (quizId) => {
+export const usePrivateQuizAccess = () => {
     const [hasAccess, setHasAccess] = useState(false);
     const [accessKey, setAccessKey] = useState('');
     const [loading, setLoading] = useState(true);
     
-    // Заменяем метод grantAccess в usePrivateQuizAccess
-    const grantAccess = async (key) => {
+    /** Выдать доступ (записать в локал сторадж) */
+    const grantAccess = async (quizId, key) => {
         try {
             // Используем API для проверки ключа
             const response = await quizApi.connectToQuizByCode(key.toUpperCase());
@@ -16,7 +16,7 @@ export const usePrivateQuizAccess = (quizId) => {
             // Проверяем, что ключ подходит для этого квиза
             if (parseInt(response.quizId) === parseInt(quizId)) {
                 // Сохраняем ключ в localStorage
-                localStorage.setItem(`quiz_access_${quizId}`, key.toUpperCase());
+                setSavedAccessKey(quizId, key);
                 setHasAccess(true);
                 setAccessKey(key.toUpperCase());
                 return {
@@ -46,12 +46,22 @@ export const usePrivateQuizAccess = (quizId) => {
         }
     };
 
+    /**Сохранить ключ доступа */
+    const setSavedAccessKey = (quizId, key) => {
+        localStorage.setItem(`quiz_access_${quizId}`, key.toUpperCase());
+    }
+
+    // Функция для получения сохраненного ключа доступа
+    const getSavedAccessKey = (quizId) => {
+        return localStorage.getItem(`quiz_access_${quizId}`);
+    };
+
     // Обновляем метод checkAccess
-    const checkAccess = useCallback(async () => {
+    const checkAccess = async (quizId) => {
         setLoading(true);
         try {
             // Проверяем, есть ли сохраненный ключ доступа
-            const storedKey = localStorage.getItem(`quiz_access_${quizId}`);
+            const storedKey = getSavedAccessKey(quizId);
             
             if (storedKey) {
                 // Проверяем валидность ключа через метод подключения
@@ -61,6 +71,8 @@ export const usePrivateQuizAccess = (quizId) => {
                         // Ключ валиден
                         setHasAccess(true);
                         setAccessKey(storedKey);
+
+                        return storedKey;
                     } else {
                         // Ключ не подходит для этого квиза
                         localStorage.removeItem(`quiz_access_${quizId}`);
@@ -73,6 +85,8 @@ export const usePrivateQuizAccess = (quizId) => {
                         console.log('403 ошибка при проверке ключа, но ключ сохранен');
                         setHasAccess(true);
                         setAccessKey(storedKey);
+
+                        return storedKey;
                     } else {
                         // Ключ недействителен
                         console.warn('Недействительный ключ доступа:', error);
@@ -92,43 +106,20 @@ export const usePrivateQuizAccess = (quizId) => {
         } finally {
             setLoading(false);
         }
-    }, [quizId]);
+    }
     
-    useEffect(() => {
-        checkAccess();
-    }, [quizId]);
+    // useEffect(() => {
+    //     checkAccess();
+    // }, [quizId]);
     
-    // const grantAccess = async (key) => {
-    //     try {
-    //         // Проверяем ключ через API подключения
-    //         const response = await quizApi.connectToQuizByCode(key.toUpperCase());
-            
-    //         // Проверяем, что ключ подходит для этого квиза
-    //         if (parseInt(response.quizId) === parseInt(quizId)) {
-    //             // Сохраняем ключ
-    //             localStorage.setItem(`quiz_access_${quizId}`, key.toUpperCase());
-    //             setHasAccess(true);
-    //             setAccessKey(key.toUpperCase());
-    //             return {
-    //                 success: true,
-    //                 quizInfo: response
-    //             };
-    //         } else {
-    //             // Ключ не подходит для этого квиза
-    //             throw new Error('Ключ не подходит для этого квиза');
-    //         }
-    //     } catch (error) {
-    //         console.error('Ошибка предоставления доступа:', error);
-    //         throw error;
-    //     }
-    // };
-    
-    const revokeAccess = () => {
+    /** Убрать доступ к квизу */
+    const revokeAccess = (quizId) => {
         localStorage.removeItem(`quiz_access_${quizId}`);
         setHasAccess(false);
         setAccessKey('');
     };
     
+    /** Скопировать ключ доступа */
     const copyAccessKey = () => {
         if (accessKey) {
             navigator.clipboard.writeText(accessKey);
@@ -146,6 +137,8 @@ export const usePrivateQuizAccess = (quizId) => {
         copyAccessKey,
         checkAccess,
         setHasAccess, // Экспортируем сеттер
-        setAccessKey   // Экспортируем сеттер
+        setAccessKey,
+        setSavedAccessKey,
+        getSavedAccessKey
     };
 };

@@ -7,12 +7,14 @@ import {
 import { useNavigate } from 'react-router-dom';
 import Cookies from 'js-cookie';
 import { useQuizes } from '../hooks/useQuizes';
+import { useUsers } from '../hooks/useUsers';
 
 const { Text, Paragraph, Title } = Typography;
 
 function MyQuizCard({ quiz, onDelete }) {
     const navigate = useNavigate();
     const { deleteQuiz } = useQuizes();
+    const { checkToken } = useUsers();
     const [deleteModalVisible, setDeleteModalVisible] = useState(false);
 
     const handleEdit = () => {
@@ -30,7 +32,7 @@ function MyQuizCard({ quiz, onDelete }) {
 
     const handleDeleteConfirm = async () => {
         try {
-            const token = Cookies.get('token');
+            const token = await checkToken();
             if (!token) {
                 message.error('Ошибка авторизации');
                 return;

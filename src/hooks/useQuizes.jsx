@@ -143,9 +143,9 @@ export const useQuizes = () => {
         }
     };
     // Метод для проверки прав доступа к статистике квиза
-    const checkQuizOwnership = async (quizId, token) => {
+    const checkQuizOwnership = async (quizId, token, accessKey) => {
         try {
-            const quiz = await getQuizById(quizId, token);
+            const quiz = await getQuizById(quizId, token, accessKey);
             const userId = GetUserIdFromJWT ? GetUserIdFromJWT(token) : null;
             
             if (!userId) {

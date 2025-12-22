@@ -7,12 +7,15 @@ import { useNavigate } from 'react-router-dom';
 import Cookies from 'js-cookie';
 import { 
     TrophyOutlined, ClockCircleOutlined, CheckCircleOutlined,
-    EyeOutlined, FileTextOutlined, CrownOutlined
+    EyeOutlined, FileTextOutlined, CrownOutlined,
+    AppstoreAddOutlined,
+    AppstoreOutlined
 } from '@ant-design/icons';
 import * as api from '../API methods/attemptMethods.jsx';
 import * as quizApi from '../API methods/quizMethods.jsx';
 import HeaderComponent from '../components/HeaderComponent';
 import { useUsers } from '../hooks/useUsers.jsx';
+import { useIsPortrait } from '../hooks/usePortain.jsx';
 
 const { Title, Text } = Typography;
 
@@ -21,7 +24,8 @@ export default function CompletedQuizzes() {
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
     const navigate = useNavigate();
-    const {GetUserIdFromJWT} = useUsers();
+    const {GetUserIdFromJWT, checkToken} = useUsers();
+    const isPortrait = useIsPortrait();
 
     // Функция для получения лучших попыток
     const getBestAttempts = useCallback((attemptsData) => {
@@ -96,6 +100,54 @@ export default function CompletedQuizzes() {
         });
     }, []);
 
+
+    // Функция для получения сохраненного ключа доступа
+    const getSavedAccessKey = (quizId) => {
+        return localStorage.getItem(`quiz_access_${quizId}`);
+    };
+
+    // Функция для загрузки информации о квизе с учетом приватных ключей
+    const loadQuizInfoWithAccess = async (quizId, token) => {
+        try {
+            // Проверяем, есть ли сохраненный ключ доступа
+            const savedAccessKey = getSavedAccessKey(quizId);
+            
+            if (savedAccessKey) {
+                // Пробуем загрузить с сохраненным ключом
+                try {
+                    const quizInfo = await quizApi.getQuizById(quizId, token, savedAccessKey);
+                    console.log(`Квиз ${quizId} загружен с сохраненным ключом`);
+                    return { ...quizInfo, hasAccess: true };
+                } catch (accessError) {
+                    console.warn(`Не удалось загрузить квиз ${quizId} с сохраненным ключом:`, accessError);
+                    // Пробуем загрузить без ключа
+                }
+            }
+            
+            // Загружаем без ключа (или если ключ не сработал)
+            const quizInfo = await quizApi.getQuizById(quizId, token);
+            return { ...quizInfo, hasAccess: !quizInfo.isPublic ? false : true };
+            
+        } catch (error) {
+            console.error(`Ошибка загрузки квиза ${quizId}:`, error);
+            
+            // Если 403 ошибка и есть сохраненный ключ, всё равно создаем базовую информацию
+            if (error.response?.status === 403) {
+                return {
+                    id: quizId,
+                    title: `Приватный квиз`,
+                    description: 'Доступ ограничен',
+                    isPublic: false,
+                    questionsCount: 0,
+                    timeLimit: null,
+                    hasAccess: false
+                };
+            }
+            
+            throw error;
+        }
+    };
+
     useEffect(() => {
         loadBestAttempts();
     }, []);
@@ -104,7 +156,7 @@ export default function CompletedQuizzes() {
         setLoading(true);
         setError(null);
         try {
-            const token = Cookies.get('token');
+            const token = await checkToken();
             if (!token) {
                 message.warning('Для просмотра пройденных квизов необходимо войти в аккаунт');
                 navigate('/login');
@@ -119,7 +171,7 @@ export default function CompletedQuizzes() {
             console.log('Загрузка попыток для пользователя:', userId);
             
             // Используем правильный метод для получения попыток пользователя
-            const attemptsData = await api.getUserAttempts(userId);
+            const attemptsData = await api.getUserAttempts(token, userId);
             console.log('Полученные попытки:', attemptsData);
             
             if (!attemptsData || !Array.isArray(attemptsData)) {
@@ -151,7 +203,8 @@ export default function CompletedQuizzes() {
             const bestAttemptsWithQuizInfo = await Promise.all(
                 bestAttemptsData.map(async (attempt) => {
                     try {
-                        const quizInfo = await quizApi.getQuizById(attempt.quizId, token);
+                        const savedAccessKey = getSavedAccessKey(attempt.quizId);
+                        const quizInfo = await quizApi.getQuizById(attempt.quizId, token, savedAccessKey);
                         return { ...attempt, quizInfo };
                     } catch (err) {
                         console.error(`Ошибка загрузки квиза ${attempt.quizId}:`, err);
@@ -211,10 +264,8 @@ export default function CompletedQuizzes() {
 
     return (
         <Layout>
-            <HeaderComponent />
-
-            <div style={{ padding: "24px 40px" }}>
-                <Card 
+            <div style={{ padding: isPortrait ? '16px 16px' : '24px 24px' }}>
+                {/* <Card 
                     style={{ 
                         marginBottom: 24,
                         borderRadius: '8px',
@@ -228,9 +279,9 @@ export default function CompletedQuizzes() {
                             Ваши лучшие результаты по квизам. Показывается только лучшая попытка для каждого квиза.
                         </Typography.Text>
                     </Space>
-                </Card>
+                </Card> */}
 
-                <Title level={2}>
+                <Title level={2} style={{marginTop: 0}}>
                     <Space>
                         <CrownOutlined />
                         Лучшие результаты
@@ -265,7 +316,7 @@ export default function CompletedQuizzes() {
                 ) : (
                     <Space direction="vertical" size="large" style={{ width: '100%' }}>
                         <Text type="secondary">
-                            Показано {bestAttempts.length} квизов. Для каждого квиза показана лучшая попытка.
+                            Ваши лучшие результаты по квизам. Показывается лучшая попытка для каждого квиза.
                         </Text>
                         
                         <Row gutter={[24, 24]}>
@@ -288,20 +339,21 @@ export default function CompletedQuizzes() {
                                                     icon={<EyeOutlined />}
                                                     onClick={() => navigate(`/quiz-result/${attempt.id}`)}
                                                 >
-                                                    Посмотреть детали
+                                                    Детали
                                                 </Button>,
                                                 <Button
                                                     type="link"
+                                                    icon={<AppstoreOutlined />}
                                                     onClick={() => navigate(`/quiz/${attempt.quizId}`)}
                                                 >
-                                                    Пройти снова
+                                                    Квиз
                                                 </Button>
                                             ]}
-                                            extra={
-                                                <Tag color="gold" icon={<CrownOutlined />}>
-                                                    Лучшая попытка
-                                                </Tag>
-                                            }
+                                            // extra={
+                                            //     <Tag color="gold" icon={<CrownOutlined />}>
+                                            //         Лучшая попытка
+                                            //     </Tag>
+                                            // }
                                         >
                                             <Space direction="vertical" size="middle" style={{ width: '100%' }}>
                                                 {quizInfo ? (
@@ -310,11 +362,11 @@ export default function CompletedQuizzes() {
                                                             {quizInfo.title}
                                                         </Title>
                                                         
-                                                        {quizInfo.description && (
+                                                        {/* {quizInfo.description && (
                                                             <Text type="secondary" ellipsis={{ rows: 2 }}>
                                                                 {quizInfo.description}
                                                             </Text>
-                                                        )}
+                                                        )} */}
                                                     </>
                                                 ) : (
                                                     <Title level={4} style={{ margin: 0 }}>
@@ -351,12 +403,12 @@ export default function CompletedQuizzes() {
                                                     
                                                     <Descriptions column={1} size="small" bordered>
                                                         <Descriptions.Item 
-                                                            label={<><ClockCircleOutlined /> Время прохождения</>}
+                                                            label={<><ClockCircleOutlined /> Время</>}
                                                         >
                                                             {formatTimeSpan(attempt.timeSpent)}
                                                         </Descriptions.Item>
                                                         <Descriptions.Item 
-                                                            label={<><CheckCircleOutlined /> Дата завершения</>}
+                                                            label={<><CheckCircleOutlined /> Дата</>}
                                                         >
                                                             {formatDate(attempt.completedAt)}
                                                         </Descriptions.Item>

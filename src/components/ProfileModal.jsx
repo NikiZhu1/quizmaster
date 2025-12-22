@@ -12,7 +12,7 @@ import {
 import { useNavigate, useLocation } from 'react-router-dom';
 import Cookies from 'js-cookie';
 import apiClient from '../API methods/.APIclient';
-import { updateUserProfile } from '../API methods/usersMethods';
+import { useUsers } from '../hooks/useUsers';
 
 const { Title, Text } = Typography;
 const { TabPane } = Tabs;
@@ -31,6 +31,7 @@ const ProfileModal = ({
     const [passwordLoading, setPasswordLoading] = useState(false);
     const [activeTab, setActiveTab] = useState('profile');
     const [userData, setUserData] = useState(null);
+    const { checkToken, changeUsername, changePassword, getUserInfo } = useUsers();
 
     // Загружаем данные пользователя при открытии модального окна
     useEffect(() => {
@@ -49,18 +50,13 @@ const ProfileModal = ({
 
     const loadUserData = async () => {
         try {
-            const token = Cookies.get('token');
+            const token = await checkToken();
             if (!token) return;
 
-            const response = await apiClient.get(`/User/${userId}`, {
-                headers: {
-                    'Authorization': `Bearer ${token}`
-                }
-            });
-            
-            setUserData(response.data);
+            const userdata = await getUserInfo(userId);
+            setUserData(userdata);
             form.setFieldsValue({
-                userName: response.data.userName || userName || ''
+                userName: userdata.name || userName || ''
             });
         } catch (error) {
             console.error('Ошибка загрузки данных пользователя:', error);
@@ -72,7 +68,7 @@ const ProfileModal = ({
     const handleProfileUpdate = async (values) => {
         setLoading(true);
         try {
-            const token = Cookies.get('token');
+            const token = await checkToken();
             if (!token) {
                 message.error('Требуется авторизация');
                 return;
@@ -97,7 +93,7 @@ const ProfileModal = ({
             });
 
             // Используем метод из usersMethods
-            const response = await updateUserProfile(userId, updateData);
+            const response = await changeUsername(token, userId, newUserName);
 
             message.success('Профиль успешно обновлен!');
             
@@ -151,7 +147,7 @@ const ProfileModal = ({
         console.log('handlePasswordChange вызван с значениями:', values);
         setPasswordLoading(true);
         try {
-            const token = Cookies.get('token');
+            const token = await checkToken();
             if (!token) {
                 message.error('Требуется авторизация');
                 setPasswordLoading(false);
@@ -187,7 +183,7 @@ const ProfileModal = ({
             console.log('Изменение пароля для пользователя:', userId, updateData);
 
             // Используем метод обновления профиля
-            const response = await updateUserProfile(userId, updateData);
+            const response = await changePassword(token, userId, values.oldPassword, values.newPassword);
 
             message.success('Пароль успешно изменен!');
             

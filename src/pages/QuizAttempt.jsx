@@ -7,13 +7,16 @@ import {
 import { 
     LeftOutlined, 
     QuestionCircleOutlined, CheckCircleOutlined,
-    RightOutlined, CheckOutlined, SaveOutlined, ClockCircleOutlined
+    RightOutlined, CheckOutlined, SaveOutlined, ClockCircleOutlined,
+    ArrowLeftOutlined
 } from '@ant-design/icons';
 import Cookies from 'js-cookie';
 
 import { useQuizAttempt } from '../hooks/useQuizAttempt';
 import HeaderComponent from '../components/HeaderComponent';
 import { useQuizes } from '../hooks/useQuizes';
+import { useIsPortrait } from '../hooks/usePortain';
+import { useUsers } from '../hooks/useUsers';
 
 const { Header, Content, Sider } = Layout;
 const { Title, Text, Paragraph } = Typography;
@@ -22,6 +25,8 @@ export default function QuizAttempt() {
     const { quizId } = useParams();
     const navigate = useNavigate();
     const { getQuizById } = useQuizes();
+    const { checkToken } = useUsers();
+    const isPortrait = useIsPortrait();
     
     const {
         attempt,
@@ -62,7 +67,7 @@ export default function QuizAttempt() {
     useEffect(() => {
         const initializeAttempt = async () => {
             try {
-                const token = Cookies.get('token');
+                const token = await checkToken();
                 
                 // Пытаемся получить сохраненный ключ доступа
                 const storedKey = localStorage.getItem(`quiz_access_${quizId}`);
@@ -74,7 +79,7 @@ export default function QuizAttempt() {
                 
                 if (!restored) {
                     // Если нет активной попытки, начинаем новую с ключом доступа
-                    await startQuizAttempt(quizId, accessKey);
+                    await startQuizAttempt(token, quizId, accessKey);
                 }
                 
                 setInitialized(true);
@@ -321,12 +326,12 @@ export default function QuizAttempt() {
                     <Button 
                         onClick={handleCancelAttempt}
                         type='link'
-                        icon={<LeftOutlined />}
+                        icon={<ArrowLeftOutlined/>}
                         style={{
                             color: '#8c8c8c',
                             fontWeight: 500,
                             fontSize: '14px',
-                            // padding: '8px 16px',
+                            padding: 0,
                             borderRadius: '6px'
                         }}
                         onMouseEnter={(e) => {
@@ -342,17 +347,27 @@ export default function QuizAttempt() {
                     </Button>
 
                     {/* Центральная часть - название квиза и таймер */}
-                    <Flex vertical gap='8px' align="center" style={{ textAlign: 'center' }}>
+                    <Flex
+                        vertical
+                        gap="8px"
+                        align="center"
+                        style={{
+                            textAlign: 'center',
+                            flex: 1,
+                            minWidth: 0
+                        }}
+                    >
                         {/* Название квиза */}
                         <Title level={4} style={{ 
                             margin: 0,
                             color: '#262626',
                             fontWeight: 600,
                             fontSize: '20px',
-                            maxWidth: '400px',
+                            maxWidth: '100%',
                             overflow: 'hidden',
                             textOverflow: 'ellipsis',
-                            whiteSpace: 'nowrap'
+                            whiteSpace: 'nowrap',
+                            padding: '0px 8px'
                         }}>
                             {quizInfo?.title || 'Квиз'}
                         </Title>
@@ -398,24 +413,37 @@ export default function QuizAttempt() {
                             fontSize: '14px',
                             fontWeight: 500 
                         }}>
-                            Отвечено: {answeredCount} из {questions.length}
+                            {!isPortrait && 'Отвечено: '} {answeredCount} из {questions.length}
                         </Text>
                     </div>
                 </Flex>
             </Header>
 
-            <Layout>
-                {/* Боковая панель с навигацией */}
-                <Sider width={250} style={{ 
-                    background: '#fff',
-                    padding: '24px 16px',
-                    borderRight: '1px solid #f0f0f0'
+            <Layout style={{
+                display: 'flex',
+                flexDirection: isPortrait ? 'column' : 'row',
                 }}>
+                {/* Боковая панель с навигацией */}
+                <Sider
+                    width={isPortrait ? '100%' : 250}
+                    style={{
+                        background: '#fff',
+                        padding: '16px',
+                        borderRight: !isPortrait ? '1px solid #f0f0f0' : 'none',
+                        borderBottom: isPortrait ? '1px solid #f0f0f0' : 'none',
+                    }}
+                    >
                     <Title level={5} style={{ marginBottom: 16, marginTop: 0 }}>
                         Навигация по вопросам
                     </Title>
                     
-                    <Flex wrap gap='8px' style={{ width: '100%' }}>
+                    <Flex wrap={isPortrait ? 'nowrap' : 'wrap'} 
+                        gap='8px' 
+                        style={{ 
+                            width: '100%',
+                            overflowX: isPortrait ? 'auto' : 'visible', // горизонтальная прокрутка
+                            paddingBottom: isPortrait ? 8 : 0
+                        }}>
                         {questions.map((question, index) => {
                             const isAnswered = answers[question.id] && answers[question.id].length > 0;
                             const isCurrent = currentQuestionIndex === index;
@@ -456,7 +484,8 @@ export default function QuizAttempt() {
                                             height: 40,
                                             marginBottom: 8,
                                             backgroundColor,
-                                            borderColor
+                                            borderColor,
+                                            flex: '0 0 auto',
                                         }}
                                     >
                                         {index + 1}
@@ -468,32 +497,36 @@ export default function QuizAttempt() {
                             );
                         })}
                     </Flex>
+                    
+                    {!isPortrait && 
+                    <>
+                            <Divider style={{ margin: '16px 0' }} />
 
-                    <Divider style={{ margin: '16px 0' }} />
-
-                    <Space direction="vertical" style={{ width: '100%' }}>
-                        {/* <Text type="secondary" style={{ fontSize: 12 }}>
-                            <span style={{ color: '#52c41a' }}>●</span> Ответ дан<br />
-                            <span style={{ color: '#faad14' }}>●</span> Просмотрен<br />
-                            <span style={{ color: '#d9d9d9' }}>●</span> Не просмотрен
-                        </Text> */}
-                        
-                        <Button
-                            type="primary"
-                            danger
-                            onClick={handleFinishQuiz}
-                            loading={submitting}
-                            icon={<CheckCircleOutlined />}
-                            block
-                            style={{ marginTop: 8 }}
-                        >
-                            Завершить квиз
-                        </Button>
-                    </Space>
+                            <Space direction="vertical" style={{ width: '100%' }}>
+                            {/* <Text type="secondary" style={{ fontSize: 12 }}>
+                                <span style={{ color: '#52c41a' }}>●</span> Ответ дан<br />
+                                <span style={{ color: '#faad14' }}>●</span> Просмотрен<br />
+                                <span style={{ color: '#d9d9d9' }}>●</span> Не просмотрен
+                            </Text> */}
+                            
+                            <Button
+                                type="primary"
+                                danger
+                                size='large'
+                                onClick={handleFinishQuiz}
+                                loading={submitting}
+                                icon={<CheckCircleOutlined />}
+                                block
+                                style={{ marginTop: 8 }}
+                            >
+                                Завершить квиз
+                            </Button>
+                            </Space>
+                    </>}
                 </Sider>
 
                 {/* Основное содержимое с вопросом */}
-                <Content style={{ padding: '24px' }}>
+                <Content style={{ padding: isPortrait ? '16px': '24px', width: isPortrait && '100%' }}>
                     <Card
                         title={
                             <Space>
@@ -504,13 +537,15 @@ export default function QuizAttempt() {
                                 </Text>
                             </Space>
                         }
-                        // style={{ minHeight: '60vh' }}
+                        styles={{
+                            body: { padding: isPortrait && 16 }
+                        }}
                         extra={
                             <Space>
                                 {isQuestionAnswered && (
                                     <Space>
                                         <SaveOutlined style={{ color: '#52c41a' }} />
-                                        <Text type="success">Ответ сохранен</Text>
+                                        <Text type="success">{!isPortrait && 'Ответ сохранен'}</Text>
                                     </Space>
                                 )}
                             </Space>
@@ -555,48 +590,66 @@ export default function QuizAttempt() {
                             </Space>
 
                             {/* Улучшенные кнопки навигации */}
-                            <Row justify="space-between" style={{ marginTop: 32 }}>
-                                <Col>
+                            <Row
+                                gutter={12}
+                                justify="space-between"
+                                style={{ marginTop: 32 }}
+                            >
+                                {/* Назад */}
+                                <Col span={isPortrait ? 12 : undefined}>
                                     <Button
                                         icon={<LeftOutlined />}
                                         onClick={handlePreviousQuestion}
                                         disabled={currentQuestionIndex === 0}
                                         size="large"
+                                        block={isPortrait}
+                                        style={{
+                                            borderRadius: 12,
+                                            height: isPortrait ? 48 : undefined,
+                                        }}
                                     >
-                                        Предыдущий вопрос
+                                        Предыдущий
                                     </Button>
                                 </Col>
-                                
-                                <Col>
-                                    <Space>
-                                        {/* Кнопка перехода к следующему вопросу или завершения */}
-                                        {!isLastQuestion ? (
-                                            <Button
-                                                type="primary"
-                                                onClick={handleNextQuestion}
-                                                size="large"
-                                                style={{ minWidth: 180 }}
-                                            >
-                                                <Space>
-                                                    Следующий вопрос
-                                                    <RightOutlined />
-                                                </Space>
-                                            </Button>
-                                        ) : (
-                                            <Button
-                                                type="primary"
-                                                icon={<CheckCircleOutlined />}
-                                                onClick={handleFinishQuiz}
-                                                loading={submitting}
-                                                size="large"
-                                                style={{ minWidth: 180 }}
-                                            >
-                                                Завершить квиз
-                                            </Button>
-                                        )}
-                                    </Space>
+
+                                {/* Далее / Готово */}
+                                <Col span={isPortrait ? 12 : undefined}>
+                                    {!isLastQuestion ? (
+                                        <Button
+                                            type="primary"
+                                            onClick={handleNextQuestion}
+                                            size="large"
+                                            block={isPortrait}
+                                            style={{
+                                                borderRadius: 12,
+                                                height: isPortrait ? 48 : undefined,
+                                                fontWeight: 600,
+                                            }}
+                                        >
+                                            Следующий <RightOutlined />
+                                        </Button>
+                                    ) : (
+                                        <Button
+                                            type="primary"
+                                            icon={<CheckCircleOutlined />}
+                                            onClick={handleFinishQuiz}
+                                            loading={submitting}
+                                            size="large"
+                                            block={isPortrait}
+                                            style={{
+                                                borderRadius: 12,
+                                                height: isPortrait ? 48 : undefined,
+                                                fontWeight: 600,
+                                            }}
+                                        >
+                                            Завершить
+                                        </Button>
+                                    )}
                                 </Col>
                             </Row>
+
+
+
 
                             {/* Информация о прогрессе */}
                             <Divider style={{ margin: '16px 0' }} />
@@ -609,7 +662,35 @@ export default function QuizAttempt() {
                                 </Col>
                             </Row>
                         </Space>
+
+                        
                     </Card>
+
+                    {isPortrait && 
+                    <>
+                            <Divider style={{ margin: '16px 0' }} />
+
+                            <Space direction="vertical" style={{ width: '100%' }}>
+                            {/* <Text type="secondary" style={{ fontSize: 12 }}>
+                                <span style={{ color: '#52c41a' }}>●</span> Ответ дан<br />
+                                <span style={{ color: '#faad14' }}>●</span> Просмотрен<br />
+                                <span style={{ color: '#d9d9d9' }}>●</span> Не просмотрен
+                            </Text> */}
+                            
+                            <Button
+                                type="primary"
+                                danger
+                                size='large'
+                                onClick={handleFinishQuiz}
+                                loading={submitting}
+                                icon={<CheckCircleOutlined />}
+                                block
+                                style={{ marginTop: 8 }}
+                            >
+                                Завершить квиз
+                            </Button>
+                            </Space>
+                    </>}
                 </Content>
             </Layout>
         </Layout>

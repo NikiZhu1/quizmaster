@@ -26,6 +26,8 @@ import {
 } from '../utils/categoryUtils';
 import apiClient from '../API methods/.APIclient';
 import '../App.css';
+import { useUsers } from '../hooks/useUsers';
+import { usePrivateQuizAccess } from '../hooks/usePrivateQuizAccess';
 
 const { Content } = Layout;
 const { Title, Text, Paragraph } = Typography;
@@ -35,6 +37,8 @@ const { Option } = Select;
 export default function CreateQuestions() {
     const {getQuizById, updateQuiz, getQuizQuestions} = useQuizes();
     const {createQuestion, updateQuestion, updateOption, getQuestionById, createOption, deleteOption, deleteQuestion} = useQuestions();
+    const { checkToken } = useUsers();
+    const { checkAccess } = usePrivateQuizAccess();
     const { quizId } = useParams();
     const navigate = useNavigate();
     const [form] = Form.useForm();
@@ -69,7 +73,7 @@ export default function CreateQuestions() {
         try {
             console.log('Загрузка категорий для редактирования квиза...');
             
-            const token = Cookies.get('token');
+            const token = await checkToken();
             const response = await apiClient.get('/Category', {
                 headers: token ? { 'Authorization': `Bearer ${token}` } : {}
             });
@@ -92,45 +96,14 @@ export default function CreateQuestions() {
             setCategoriesLoading(false);
         }
     };
-    // const loadCategories = async () => {
-    //     setCategoriesLoading(true);
-    //     try {
-    //         const token = Cookies.get('token');
-    //         const response = await fetch(`${process.env.REACT_APP_API_BASE_URL || 'http://localhost:5000'}/api/Category`, {
-    //             headers: token ? { 'Authorization': `Bearer ${token}` } : {}
-    //         });
-            
-    //         if (!response.ok) {
-    //             throw new Error(`HTTP error! status: ${response.status}`);
-    //         }
-            
-    //         const categoriesData = await response.json();
-    //         console.log('Категории загружены:', categoriesData);
-    //         setCategories(categoriesData);
-    //     } catch (error) {
-    //         console.error('Ошибка при загрузке категорий:', error);
-    //         message.warning('Не удалось загрузить список категорий');
-            
-    //         // Создаем дефолтные категории, если API недоступно
-    //         setCategories([
-    //             { CategoryType: 0, Name: 'General' },
-    //             { CategoryType: 1, Name: 'Science' },
-    //             { CategoryType: 2, Name: 'History' },
-    //             { CategoryType: 3, Name: 'Sport' },
-    //             { CategoryType: 4, Name: 'Art' },
-    //             { CategoryType: 5, Name: 'Entertainment' },
-    //             { CategoryType: 7, Name: 'Other' }
-    //         ]);
-    //     } finally {
-    //         setCategoriesLoading(false);
-    //     }
-    // };
 
     const loadQuizData = async () => {
         try {
             setLoadingQuiz(true);
-            const token = Cookies.get('token');
-            const quizData = await getQuizById(quizId, token);
+            const token = await checkToken();
+            const savedAccessKey = await checkAccess(quizId);
+            console.log("КЛЮЧ ЕСТЬ!", savedAccessKey)
+            const quizData = await getQuizById(quizId, token, savedAccessKey);
             setQuiz(quizData);
 
             // Устанавливаем значения в форму редактирования
@@ -174,7 +147,7 @@ export default function CreateQuestions() {
         setSavingQuiz(true);
         
         try {
-            const token = Cookies.get('token');
+            const token = await checkToken();
             
             if (!token) {
                 message.error('Требуется авторизация');
@@ -232,7 +205,7 @@ export default function CreateQuestions() {
         setLoading(true);
 
         try {
-            const token = Cookies.get('token');
+            const token = await checkToken();
 
             if (!token) {
                 message.error('Требуется авторизация');
@@ -326,7 +299,7 @@ export default function CreateQuestions() {
     const handleSaveEdit = async () => {
         try {
             const values = await editForm.validateFields();
-            const token = Cookies.get('token');
+            const token = await checkToken();
 
             if (!token) {
                 message.error('Требуется авторизация');
@@ -439,7 +412,7 @@ export default function CreateQuestions() {
     // Функция для удаления вопроса
     const handleDeleteQuestion = async (questionId) => {
         try {
-            const token = Cookies.get('token');
+            const token = await checkToken();
             
             if (!token) {
                 message.error('Требуется авторизация');
@@ -554,8 +527,6 @@ export default function CreateQuestions() {
 
     return (
         <Layout style={{ minHeight: '100vh' }}>
-            <HeaderComponent />
-
             <Content style={{ padding: '24px', maxWidth: '1200px', margin: '0 auto', width: '100%' }}>
                 {loadingQuiz ? (
                     <div style={{ textAlign: 'center', padding: '40px' }}>

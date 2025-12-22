@@ -4,7 +4,8 @@ import {
   Layout, Card, Row, Col, Typography, Statistic, Table, Space,
   Tag, Progress, Button, Select, DatePicker, Divider, Alert,
   Spin, Empty, Tooltip, Modal, List, Descriptions, Badge, message,
-  Tabs, Radio, Dropdown, Menu
+  Tabs, Radio, Dropdown, Menu,
+  Flex
 } from 'antd';
 import {
   ArrowLeftOutlined, BarChartOutlined, UserOutlined,
@@ -22,8 +23,11 @@ import Cookies from 'js-cookie';
 import HeaderComponent from '../components/HeaderComponent';
 import { useQuizes } from '../hooks/useQuizes';
 import { useQuestions } from '../hooks/useQuestions';
+import { useQuizAttempt } from '../hooks/useQuizAttempt';
 import { getCategoryName, getCategoryColor } from '../utils/categoryUtils';
 import * as statsApi from '../API methods/statisticsMethods';
+import { useUsers } from '../hooks/useUsers';
+import { usePrivateQuizAccess } from '../hooks/usePrivateQuizAccess';
 
 const { Content } = Layout;
 const { Title, Text, Paragraph } = Typography;
@@ -134,6 +138,9 @@ export default function QuizStatistics() {
   const navigate = useNavigate();
   const { getQuizById, checkQuizOwnership, getQuizQuestions } = useQuizes();
   const { getQuestionOptions, getQuestionById } = useQuestions();
+  const { } = useQuizAttempt();
+  const { checkToken } = useUsers();
+  const { getSavedAccessKey } = usePrivateQuizAccess();
   
   const [quiz, setQuiz] = useState(null);
   const [statistics, setStatistics] = useState([]);
@@ -176,14 +183,15 @@ export default function QuizStatistics() {
     setError(null);
     
     try {
-      const token = Cookies.get('token');
+      const token = await checkToken();
       if (!token) {
         navigate('/login');
         return;
       }
 
       // Проверяем права доступа
-      const access = await checkQuizOwnership(quizId, token);
+      const savedKey = getSavedAccessKey(quizId)
+      const access = await checkQuizOwnership(quizId, token, savedKey);
       if (!access) {
         setError('У вас нет доступа к статистике этого квиза');
         setHasAccess(false);
@@ -194,7 +202,7 @@ export default function QuizStatistics() {
       setHasAccess(true);
       
       // Загружаем информацию о квизе
-      const quizData = await getQuizById(quizId, token);
+      const quizData = await getQuizById(quizId, token, savedKey);
       setQuiz(quizData);
       setLoadingQuiz(false);
 
@@ -230,20 +238,22 @@ export default function QuizStatistics() {
     setLoadingQuestions(true);
     try {
       console.log('Загрузка вопросов для квиза', quizId);
-      const token = Cookies.get('token');
+      const token = await checkToken();
       
       let quizQuestions = [];
       
       try {
         // Способ 1: Через getQuizQuestions
-        quizQuestions = await getQuizQuestions(quizId, token);
+        const savedKey = getSavedAccessKey(quizId)
+        quizQuestions = await getQuizQuestions(quizId, savedKey);
         console.log('Вопросы загружены через getQuizQuestions:', quizQuestions?.length);
       } catch (err1) {
         console.error('Ошибка при загрузке через getQuizQuestions:', err1);
         
         try {
           // Способ 2: Через getQuizById (может содержать вопросы)
-          const quizWithQuestions = await getQuizById(quizId, token);
+          const savedKey = getSavedAccessKey(quizId)
+          const quizWithQuestions = await getQuizById(quizId, token, savedKey);
           quizQuestions = quizWithQuestions.questions || [];
           console.log('Вопросы загружены из quizWithQuestions:', quizQuestions?.length);
         } catch (err2) {
@@ -534,7 +544,7 @@ export default function QuizStatistics() {
     
     // Уникальные пользователи
     const userIds = filteredStats
-      .map(a => a.userId || a.guestSessionId)
+      .map(a => a.userId)
       .filter((value, index, self) => value && self.indexOf(value) === index);
     
     const uniqueUsers = userIds.length;
@@ -664,12 +674,12 @@ export default function QuizStatistics() {
   );
 
   const columns = [
-    {
-      title: 'ID',
-      dataIndex: 'id',
-      key: 'id',
-      width: 80,
-    },
+    // {
+    //   title: 'ID',
+    //   dataIndex: 'id',
+    //   key: 'id',
+    //   width: 80,
+    // },
     {
       title: 'Пользователь',
       key: 'user',
@@ -678,7 +688,7 @@ export default function QuizStatistics() {
           {record.userId ? (
             <>
               <UserOutlined style={{ color: '#1890ff' }} />
-              <Text>Пользователь #{record.userId}</Text>
+              <Text>Пользователь #{record.username}</Text>
             </>
           ) : (
             <>
@@ -700,7 +710,6 @@ export default function QuizStatistics() {
             <Space>
               <Text strong>{record.score}</Text>
               <Text type="secondary">из {quiz?.questionsCount || '?'}</Text>
-              {isPerfect && <Tag color="gold">Идеально</Tag>}
             </Space>
             <Progress 
               percent={percentage} 
@@ -815,8 +824,6 @@ export default function QuizStatistics() {
 
   return (
     <Layout style={{ minHeight: '100vh' }}>
-      <HeaderComponent />
-      
       <Content style={{ padding: '24px', maxWidth: '1400px', margin: '0 auto', width: '100%' }}>
         {/* Заголовок и навигация */}
         <Space direction="vertical" size="large" style={{ width: '100%' }}>
@@ -830,14 +837,6 @@ export default function QuizStatistics() {
               >
                 Вернуться к квизу
               </Button>
-            </Col>
-            <Col>
-              <Space>
-                <DashboardOutlined style={{ fontSize: '24px', color: '#1890ff' }} />
-                <Title level={2} style={{ margin: 0 }}>
-                  Статистика квиза
-                </Title>
-              </Space>
             </Col>
           </Row>
 
@@ -881,10 +880,10 @@ export default function QuizStatistics() {
           <Tabs activeKey={activeTab} onChange={setActiveTab}>
             <TabPane 
               tab={
-                <span>
+                <Flex gap='6px'>
                   <BarChartOutlined />
                   Общая статистика
-                </span>
+                </Flex>
               } 
               key="general"
             >
@@ -1002,13 +1001,10 @@ export default function QuizStatistics() {
 
             <TabPane 
               tab={
-                <span>
+                <Flex gap='6px'>
                   <QuestionCircleOutlined />
                   Статистика по вопросам
-                  {questionStats.length > 0 && (
-                    <Badge count={questionStats.length} style={{ marginLeft: 8 }} />
-                  )}
-                </span>
+                </Flex>
               } 
               key="questions"
             >
@@ -1141,10 +1137,10 @@ export default function QuizStatistics() {
                                 <Space direction="vertical" size="middle" style={{ width: '100%' }}>
                                   {/* Заголовок вопроса */}
                                   <div>
-                                    <Text strong>Вопрос {question.order || index + 1}</Text>
+                                    <Text strong>Вопрос {index + 1}</Text>
                                     <div style={{ marginTop: 4 }}>
                                       <Text type="secondary" ellipsis style={{ fontSize: '12px' }}>
-                                        {question.text || `Вопрос ${question.order || index + 1}`}
+                                        {question.text || `Вопрос ${index + 1}`}
                                       </Text>
                                     </div>
                                   </div>
@@ -1169,9 +1165,9 @@ export default function QuizStatistics() {
                                                    correctRate >= 50 ? '#faad14' : 
                                                    '#f5222d'}
                                     />
-                                    <Text type="secondary" style={{ fontSize: '12px', display: 'block', marginTop: 4 }}>
+                                    {/* <Text type="secondary" style={{ fontSize: '12px', display: 'block', marginTop: 4 }}>
                                       {correctRate}% правильных ответов
-                                    </Text>
+                                    </Text> */}
                                   </div>
 
                                   {/* Цифровая статистика */}

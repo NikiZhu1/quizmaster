@@ -15,7 +15,6 @@ import {
     ExclamationCircleOutlined,
     UserOutlined
 } from '@ant-design/icons';
-import * as api from '../API methods/attemptMethods.jsx';
 import Cookies from 'js-cookie';
 
 import HeaderComponent from '../components/HeaderComponent.jsx';
@@ -31,7 +30,8 @@ export default function QuizResult() {
     const navigate = useNavigate();
     const {getQuizById, getQuizQuestions} = useQuizes();
     const {getQuestionById} = useQuestions();
-    const {getUserInfo, userPicture} = useUsers();
+    const {getUserInfo, userPicture, checkToken} = useUsers();
+    const { getAttemptById, getAttemptAnswers } = useQuizAttempt();
     
     const [result, setResult] = useState(null); //Данные попытки
     const [passedUsername, setPassedUsername] = useState('Гость');
@@ -45,10 +45,10 @@ export default function QuizResult() {
     useEffect(() => {
         const loadResult = async () => {
             try {
-                const token = Cookies.get('token');
+                const token = await checkToken();
 
                 // 1. Загружаем попытку
-                const attemptData = await api.getAttemptById(attemptId);
+                const attemptData = await getAttemptById(attemptId, token);
                 console.log('Данные попытки:', attemptData);
                 setResult(attemptData);
                 if (attemptData.guestSessionId === null) {
@@ -60,7 +60,8 @@ export default function QuizResult() {
                 // 2. Загружаем ответы попытки
                 let answersData = [];
                 try {
-                    const answersResponse = await api.getAttemptAnswers(attemptId, attemptData);
+                    const guestSessionId = Cookies.get('guestSessionId');
+                    const answersResponse = await getAttemptAnswers(attemptId, attemptData, token, guestSessionId);
                     console.log('Ответы от API:', answersResponse);
                     
                     if (Array.isArray(answersResponse)) {
@@ -422,8 +423,6 @@ export default function QuizResult() {
 
     return (
         <Layout style={{ minHeight: '100vh' }}>
-            <HeaderComponent />
-            
             <div style={{ 
                 padding: 24, 
                 maxWidth: 1200, 

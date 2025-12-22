@@ -32,9 +32,7 @@ export const startAttempt = async (token, quizId, accessKey = null) => {
  * @param {Array} answers - Массив ответов в формате {questionId, selectedOptionIds}
  * @returns {Promise<Object>} - Результат попытки
  */
-export const finishAttempt = async (attemptId, answers) => {
-  const token = Cookies.get('token');
-  
+export const finishAttempt = async (token, attemptId, answers) => {
   // Логируем данные перед отправкой
   console.log('Отправка данных на сервер:');
   console.log('- attemptId:', attemptId);
@@ -95,10 +93,7 @@ export const getAttemptById = async (attemptId, token) => {
  * @param {Object} attemptData - данные попытки
  * @returns {Promise<Array>} - Массив ответов, сгруппированных по questionId
  */
-export const getAttemptAnswers = async (attemptId, attemptData = null) => {
-  const token = Cookies.get('token');
-  const guestSessionId = Cookies.get('guestSessionId');
-
+export const getAttemptAnswers = async (attemptId, attemptData = null, token, guestSessionId) => {
   const config = {};
   const params = {};
 
@@ -216,9 +211,7 @@ export const getAttemptAnswers = async (attemptId, attemptData = null) => {
  * Получает все попытки пользователя
  * @returns {Promise<Array>} - Массив попыток пользователя
  */
-export const getUserAttempts = async (userId) => {
-  const token = Cookies.get('token');
-  
+export const getUserAttempts = async (token, userId) => {
   if (!token) {
     throw new Error('Токен авторизации обязателен');
   }
@@ -242,8 +235,7 @@ export const getUserAttempts = async (userId) => {
  * @param {string} guestSessionId - ID гостевой сессии (опционально)
  * @returns {Promise<Array>} - Массив лучших попыток
  */
-export const getLeaderboard = async (quizId, guestSessionId = null) => {
-    const token = Cookies.get('token');
+export const getLeaderboard = async (quizId, token, guestSessionId = null) => {
     const config = {};
     const params = {};
 
@@ -253,19 +245,16 @@ export const getLeaderboard = async (quizId, guestSessionId = null) => {
         };
     }
 
+    let url = `/Attempt/quiz/${quizId}/leaderboard`;
+
     // Если передали guestSessionId или есть в cookies
     const sessionId = guestSessionId || Cookies.get('guestSessionId');
     if (sessionId) {
-        params.guestSessionId = sessionId;
-    }
-
-    // Добавляем params если есть
-    if (Object.keys(params).length > 0) {
-        config.params = params;
+        url += `?guestSessionId=${sessionId}`;
     }
 
     try {
-        const response = await apiClient.get(`/Attempt/quiz/${quizId}/leaderboard`, config);
+        const response = await apiClient.get(url, config);
         
         // Преобразуем данные в удобный формат
         const leaderboardData = Array.isArray(response.data) ? response.data : [];
