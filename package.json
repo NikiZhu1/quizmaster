@@ -20,9 +20,13 @@
   },
   "scripts": {
     "start": "react-scripts start",
-    "build": "react-scripts build",
-    "test": "react-scripts test",
-    "eject": "react-scripts eject"
+    "test": "jest",
+    "test:e2e": "jest --config jest.e2e.config.js",
+    "test:e2e:watch": "jest --config jest.e2e.config.js --watch",
+    "test:e2e:ui": "jest --config jest.e2e.config.js --watchAll",
+    "test:e2e:debug": "jest --config jest.e2e.config.js --verbose --no-coverage",
+    "test:e2e:specific": "jest --config jest.e2e.config.js --testPathPattern=",
+    "test:all": "npm run test && npm run test:e2e"
   },
   "eslintConfig": {
     "extends": [
@@ -41,5 +45,13 @@
       "last 1 firefox version",
       "last 1 safari version"
     ]
+  },
+  "devDependencies": {
+    "@types/jest": "^30.0.0",
+    "chromedriver": "^143.0.3",
+    "jest": "^30.2.0",
+    "jest-environment-node": "^30.2.0",
+    "jest-html-reporter": "^4.3.0",
+    "selenium-webdriver": "^4.39.0"
   }
 }

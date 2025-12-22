@@ -10,8 +10,8 @@ import { GetUserIdFromJWT } from './usersMethods';
 export const startAttempt = async (token, quizId, accessKey = null) => {
   // Формируем URL с учётом accessKey
   const url = accessKey
-  ? `/attempt/${quizId}/start?accessKey=${accessKey}`
-  : `/attempt/${quizId}/start`;
+    ? `/attempt/${quizId}/start?accessKey=${accessKey}`
+    : `/attempt/${quizId}/start`;
 
   try {
     const response = await apiClient.post(url, {}, {
@@ -25,43 +25,6 @@ export const startAttempt = async (token, quizId, accessKey = null) => {
     throw error;
   }
 };
-
-// /**
-//  * Завершает попытку прохождения квиза
-//  * @param {number} attemptId - ID попытки
-//  * @param {Array} answers - Массив ответов в формате {questionId, selectedOptionIds}
-//  * @returns {Promise<Object>} - Результат попытки
-//  */
-// export const finishAttempt = async (attemptId, answers) => {
-//   const token = Cookies.get('token');
-  
-//   // Логируем данные перед отправкой
-//   console.log('Отправка данных на сервер:');
-//   console.log('- attemptId:', attemptId);
-//   console.log('- answers:', answers);
-  
-//   try {
-//     const response = await apiClient.post(`/Attempt/${attemptId}/stop`, {
-//       answers: answers
-//     }, {
-//       headers: token ? { Authorization: `Bearer ${token}` } : {}
-//     });
-    
-//     console.log('Ответ от сервера:', response.data);
-//     return response.data;
-//   } catch (error) {
-//     console.error(`Ошибка при завершении попытки ${attemptId}:`, error);
-    
-//     // Детальная информация об ошибке
-//     if (error.response) {
-//       console.error('Статус:', error.response.status);
-//       console.error('Данные ошибки:', error.response.data);
-//     }
-    
-//     throw error;
-//   }
-// };
-// API methods/attemptMethods.jsx
 
 /**
  * Завершает попытку прохождения квиза
@@ -79,7 +42,7 @@ export const finishAttempt = async (attemptId, answers) => {
   
   // Форматируем ответы: для вопросов с одиночным выбором берем первый элемент массива
   const formattedAnswers = answers.map(answer => {
-    const isSingleChoice = answer.selectedOptionIds.length <= 1; // или проверяйте тип вопроса
+    const isSingleChoice = answer.selectedOptionIds.length <= 1;
     return {
       questionId: answer.questionId,
       selectedOptionIds: answer.selectedOptionIds
@@ -126,64 +89,10 @@ export const getAttemptById = async (attemptId, token) => {
   }
 };
 
-// /**
-//  * Получает ответы для конкретной попытки
-//  * @param {number} attemptId - ID попытки
-//  * @param {Object} attemptData - Опциональные данные попытки (для использования userId/guestSessionId из попытки)
-//  * @returns {Promise<Array>} - Массив ответов с информацией о правильности
-//  */
-// export const getAttemptAnswers = async (attemptId, attemptData = null) => {
-//   const token = Cookies.get('token');
-//   const guestSessionId = Cookies.get('guestSessionId');
-
-//   const config = {};
-//   const params = {};
-
-//   // Определяем guestSessionId: приоритет - из данных попытки, затем из cookies
-//   const sessionId = attemptData?.guestSessionId || guestSessionId;
-
-//   // Если есть токен, добавляем заголовок авторизации
-//   if (token) {
-//     config.headers = {
-//       Authorization: `Bearer ${token}`
-//     };
-    
-//     // Если есть userId в данных попытки, используем его
-//     // Иначе пытаемся извлечь из токена
-//     if (attemptData?.userId) {
-//       params.userId = attemptData.userId;
-//     } else {
-//       const userId = GetUserIdFromJWT(token);
-//       if (userId) {
-//         params.userId = userId;
-//       }
-//     }
-//   }
-
-//   // Если нет userId, но есть guestSessionId, используем его
-//   if (!params.userId && sessionId) {
-//     params.guestSessionId = sessionId;
-//   }
-
-//   // Добавляем params только если они есть
-//   if (Object.keys(params).length > 0) {
-//     config.params = params;
-//   }
-
-//   try {
-//     const response = await apiClient.get(`/attempt/${attemptId}/answers`, config);
-//     return response.data;
-//   } catch (error) {
-//     console.error(`Ошибка при получении ответов попытки ${attemptId}:`, error);
-//     throw error;
-//   }
-// };
-// API methods/attemptMethods.jsx
-
 /**
  * Получает ответы для конкретной попытки
  * @param {number} attemptId - ID попытки
- * @param {Object} attemptData - Опциональные данные попытки
+ * @param {Object} attemptData - данные попытки
  * @returns {Promise<Array>} - Массив ответов, сгруппированных по questionId
  */
 export const getAttemptAnswers = async (attemptId, attemptData = null) => {
@@ -227,7 +136,7 @@ export const getAttemptAnswers = async (attemptId, attemptData = null) => {
           questionId: questionId,
           selectedOptionIds: [],
           isCorrect: true, // Изначально считаем правильным
-          answers: [] // Сохраняем все объекты ответов для дебага
+          answers: []
         };
       }
       
@@ -338,7 +247,6 @@ export const getLeaderboard = async (quizId, guestSessionId = null) => {
     const config = {};
     const params = {};
 
-    // Если есть токен, добавляем заголовок авторизации
     if (token) {
         config.headers = {
             Authorization: `Bearer ${token}`

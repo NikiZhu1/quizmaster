@@ -2,7 +2,7 @@ import React, { useState, useCallback, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { 
     Layout, Row, Col, Card, Radio, Checkbox, Button, Space, 
-    Typography, Alert, Spin, Divider, Tooltip, Flex
+    Typography, Alert, Spin, Divider, Tooltip, Flex, message
 } from 'antd';
 import { 
     LeftOutlined, 
@@ -63,26 +63,39 @@ export default function QuizAttempt() {
         const initializeAttempt = async () => {
             try {
                 const token = Cookies.get('token');
-                const quiz = await getQuizById(quizId, token);
+                
+                // Пытаемся получить сохраненный ключ доступа
+                const storedKey = localStorage.getItem(`quiz_access_${quizId}`);
+                const urlAccessKey = new URLSearchParams(window.location.search).get('accessKey');
+                const accessKey = storedKey || urlAccessKey;
                 
                 // Пытаемся восстановить существующую попытку
-                const restored = await checkAndRestoreAttempt(quizId, quiz.privateAccessKey);
+                const restored = await checkAndRestoreAttempt(quizId, accessKey);
                 
                 if (!restored) {
-                    // Если нет активной попытки, начинаем новую
-                    await startQuizAttempt(quizId, quiz.privateAccessKey);
+                    // Если нет активной попытки, начинаем новую с ключом доступа
+                    await startQuizAttempt(quizId, accessKey);
                 }
                 
                 setInitialized(true);
             } catch (err) {
                 console.error('Ошибка инициализации попытки:', err);
                 
-                // Если ошибка авторизации, перенаправляем на логин
-                if (err.message.includes('авторизация') || err.response?.status === 401) {
+                // Если ошибка авторизации, проверяем не приватный ли квиз
+                if (err.response?.status === 403 || err.message.includes('доступ')) {
+                    message.error('Недостаточно прав для прохождения этого квиза. Возможно, требуется ключ доступа.');
+                    // Пробуем получить ключ и перезапустить
+                    const storedKey = localStorage.getItem(`quiz_access_${quizId}`);
+                    if (storedKey) {
+                        message.info('Пробуем с сохраненным ключом...');
+                        setTimeout(() => window.location.reload(), 1000);
+                    } else {
+                        navigate(`/quiz/${quizId}`);
+                    }
+                } else if (err.message.includes('авторизация') || err.response?.status === 401) {
                     navigate('/login');
                 } else {
-                    // Показываем ошибку и через 2 секунды переходим на главную
-                    setTimeout(() => navigate('/'), 2000);
+                    navigate('/');
                 }
             }
         };
@@ -234,7 +247,7 @@ export default function QuizAttempt() {
         return `${formattedHours}:${formattedMinutes}:${formattedSeconds}`;
     };
 
-    if (loading && !initialized) {
+    if (loading || !initialized) {
         return (
             <div style={{ 
                 display: 'flex', 

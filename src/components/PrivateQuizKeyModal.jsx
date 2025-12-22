@@ -1,11 +1,7 @@
 import React, { useState, useEffect } from 'react';
-import { Avatar, Dropdown, Space, Typography, Button, Modal, Input, Form, message } from 'antd';
-import { UserOutlined, SettingOutlined, LogoutOutlined, LoginOutlined, KeyOutlined } from '@ant-design/icons';
-import { useNavigate, useLocation } from 'react-router-dom';
-import Cookies from 'js-cookie';
-
-import { useUsers } from '../hooks/useUsers.jsx';
-import ProfileModal from './ProfileModal.jsx';
+import { Modal, Input, Button, Form, message, Typography, Alert } from 'antd';
+import { KeyOutlined, InfoCircleOutlined, LinkOutlined } from '@ant-design/icons';
+import { useNavigate } from 'react-router-dom';
 import * as quizApi from '../API methods/quizMethods.jsx';
 
 const { Text } = Typography;
@@ -15,6 +11,7 @@ const PrivateQuizKeyModal = ({ visible, onClose }) => {
     const [form] = Form.useForm();
     const navigate = useNavigate();
 
+    // Автофокус при открытии
     useEffect(() => {
         if (visible) {
             setTimeout(() => {
@@ -31,14 +28,17 @@ const PrivateQuizKeyModal = ({ visible, onClose }) => {
         try {
             const { key } = values;
             
+            // Проверяем валидность ключа (5 символов)
             if (!key || key.length !== 5) {
                 message.error('Ключ должен состоять из 5 символов');
                 return;
             }
 
+            // Используем метод подключения по коду
             const quizInfo = await quizApi.connectToQuizByCode(key.toUpperCase());
+            localStorage.setItem(`quiz_access_${quizInfo.quizId}`, upperKey);
             
-            message.success('Доступ предоставлен!');
+            message.success('Подключение успешно!');
             onClose();
             
             // Перенаправляем на страницу квиза
@@ -110,8 +110,41 @@ const PrivateQuizKeyModal = ({ visible, onClose }) => {
                             textAlign: 'center'
                         }}
                         onPaste={handlePaste}
+                        suffix={
+                            <Button 
+                                type="text" 
+                                size="small"
+                                onClick={() => {
+                                    const text = form.getFieldValue('key') || '';
+                                    navigator.clipboard.writeText(text);
+                                    message.success('Скопировано в буфер обмена');
+                                }}
+                            >
+                                Копировать
+                            </Button>
+                        }
                     />
                 </Form.Item>
+
+                <Alert
+                    message="Информация"
+                    description={
+                        <div style={{ fontSize: '13px' }}>
+                            <p style={{ marginBottom: 4 }}>
+                                <InfoCircleOutlined /> Ключ доступа состоит из 5 заглавных букв или цифр
+                            </p>
+                            <p style={{ marginBottom: 4 }}>
+                                <LinkOutlined /> Получить ключ можно у автора приватного квиза
+                            </p>
+                            <p style={{ marginBottom: 0 }}>
+                                🔒 Приватные квизы доступны только по специальному приглашению
+                            </p>
+                        </div>
+                    }
+                    type="info"
+                    showIcon
+                    style={{ marginBottom: 16 }}
+                />
 
                 <Form.Item>
                     <div style={{ display: 'flex', gap: 8 }}>
@@ -133,124 +166,4 @@ const PrivateQuizKeyModal = ({ visible, onClose }) => {
     );
 };
 
-const UserInfo = () => {
-  const navigate = useNavigate();
-  const { GetUserIdFromJWT, getUserInfo, logoutUser, userPicture } = useUsers();
-  const [isAuthenticated, setIsAuthenticated] = useState(false);
-  const [userName, setUserName] = useState('');
-  const [userId, setUserId] = useState(null);
-  const [profileModalVisible, setProfileModalVisible] = useState(false);
-  const [privateKeyModalVisible, setPrivateKeyModalVisible] = useState(false);
-
-  useEffect(() => {
-    checkAuthentication();
-  }, []);
-
-  const checkAuthentication = async () => {
-    const token = Cookies.get('token');
-    
-    if (token) {
-      try {
-        setIsAuthenticated(true);
-        const userid = GetUserIdFromJWT(token);
-        const user = await getUserInfo(userid);
-  
-        setUserName(user.name || 'Пользователь');
-        setUserId(user.id);
-      } catch (error) {
-        console.error('Ошибка декодирования токена:', error);
-        handleLogout();
-      }
-    } else {
-      setIsAuthenticated(false);
-      setUserName('');
-      setUserId(null);
-    }
-  };
-
-  const handleLogin = () => {
-    navigate('/login');
-  };
-
-  const handleLogout = () => {
-    logoutUser();
-    setIsAuthenticated(false);
-    setUserName('');
-    setUserId(null);
-    navigate('/');
-  };
-
-  const handleUpdateUser = (updatedData) => {
-    if (updatedData.userName) {
-      setUserName(updatedData.userName);
-    }
-  };
-
-  const userMenuItems = [
-    {
-      key: 'profile',
-      icon: <UserOutlined />,
-      label: 'Настройки профиля',
-      onClick: () => setProfileModalVisible(true)
-    },
-    {
-      key: 'privateKey',
-      icon: <KeyOutlined />,
-      label: 'Ввести ключ приватного квиза',
-      onClick: () => setPrivateKeyModalVisible(true)
-    },
-    {
-      type: 'divider',
-    },
-    {
-      key: 'logout',
-      icon: <LogoutOutlined />,
-      label: 'Выйти',
-      danger: true,
-      onClick: handleLogout
-    },
-  ];
-
-  return (
-    <>
-      {isAuthenticated ? (
-        <Dropdown menu={{ items: userMenuItems }} placement="bottomRight" arrow>
-          <Space style={{ cursor: 'pointer', padding: '0 8px' }}>
-            <Avatar 
-              icon={<UserOutlined />}
-              style={{ 
-                backgroundColor: '#1890ff',
-                color: '#fff'
-              }}
-              src={userId ? userPicture(userId) : null}
-            />
-            <Text strong>{userName}</Text>
-          </Space>
-        </Dropdown>
-      ) : (
-        <Button 
-          type="primary" 
-          icon={<LoginOutlined />}
-          onClick={handleLogin}
-        >
-          Войти
-        </Button>
-      )}
-
-      <ProfileModal
-        visible={profileModalVisible}
-        onClose={() => setProfileModalVisible(false)}
-        userId={userId}
-        userName={userName}
-        onUpdateUser={handleUpdateUser}
-      />
-
-      <PrivateQuizKeyModal
-        visible={privateKeyModalVisible}
-        onClose={() => setPrivateKeyModalVisible(false)}
-      />
-    </>
-  );
-};
-
-export default UserInfo;
+export default PrivateQuizKeyModal;

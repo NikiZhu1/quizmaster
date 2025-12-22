@@ -1,17 +1,29 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
+import { 
+    useParams, 
+    useNavigate, 
+    useSearchParams,
+    useLocation
+} from 'react-router-dom';
 import { 
     Layout, Row, Col, Card, Typography, Button, Space, 
-    Tag, Divider, Spin, Alert, Collapse, Table, Avatar, message, Skeleton, 
-    Flex
+    Tag, Divider, Spin, Alert, Collapse, Table, Avatar, 
+    message, Skeleton, Flex, Modal, Form, Input, 
+    Badge, Tooltip, Progress, Descriptions, Statistic,
+    Tabs, Radio, Dropdown, Menu
 } from 'antd';
 import { 
     ClockCircleOutlined, UserOutlined, QuestionCircleOutlined,
     TrophyOutlined, PlayCircleOutlined, ArrowLeftOutlined,
     CrownOutlined, TeamOutlined, LoadingOutlined, 
-    CopyOutlined
+    CopyOutlined, LockOutlined, EyeOutlined,
+    GlobalOutlined, KeyOutlined, ExclamationCircleOutlined,
+    BarChartOutlined, EditOutlined, ShareAltOutlined,
+    HeartOutlined, MessageOutlined, DownloadOutlined,
+    CheckCircleOutlined
 } from '@ant-design/icons';
-import { useParams, useNavigate } from 'react-router-dom';
 import Cookies from 'js-cookie';
+import dayjs from 'dayjs';
 
 // Компоненты
 import HeaderComponent from '../components/HeaderComponent';
@@ -21,17 +33,22 @@ import { useQuizes } from '../hooks/useQuizes';
 import { getLeaderboard } from '../API methods/attemptMethods';
 import { useUsers } from '../hooks/useUsers';
 import { useQuestions } from '../hooks/useQuestions';
+import { usePrivateQuizAccess } from '../hooks/usePrivateQuizAccess';
 
 const { Title, Text, Paragraph } = Typography;
 const { Panel } = Collapse;
+const { TabPane } = Tabs;
 
 const QuizDetail = () => {
     const { quizId } = useParams();
+    const [searchParams] = useSearchParams();
     const navigate = useNavigate();
-    const { getQuizById, loading: quizLoading } = useQuizes();
+    const location = useLocation();
+    const { getQuizById, connectToQuizByCode } = useQuizes();
     const { getUserInfo, userPicture } = useUsers();
     const { pluralize } = useQuestions();
     
+    // Основные состояния
     const [quiz, setQuiz] = useState(null);
     const [author, setAuthor] = useState(null);
     const [leaderboard, setLeaderboard] = useState([]);
@@ -39,12 +56,51 @@ const QuizDetail = () => {
     const [loadingAuthor, setLoadingAuthor] = useState(false);
     const [leaderboardLoading, setLeaderboardLoading] = useState(false);
     const [isAuthenticated, setIsAuthenticated] = useState(false);
+    
+    // Состояния для приватных квизов
+    const [accessKeyInput, setAccessKeyInput] = useState('');
+    const [showAccessModal, setShowAccessModal] = useState(false);
+    const [accessKeyLoading, setAccessKeyLoading] = useState(false);
+    
+    // Используем хук для управления доступом
+    const { 
+        hasAccess, 
+        accessKey, 
+        loading: accessLoading, 
+        grantAccess, 
+        revokeAccess,
+        copyAccessKey
+    } = usePrivateQuizAccess(quizId);
+    
+    // Вкладки
+    const [activeTab, setActiveTab] = useState('overview');
+    const [isFavorite, setIsFavorite] = useState(false);
+    const [userId, setUserId] = useState(null);
 
+    // Проверяем авторизацию и загружаем данные
     useEffect(() => {
         const token = Cookies.get('token');
         setIsAuthenticated(!!token);
+        
+        if (token) {
+            try {
+                const userid = parseInt(token.split('.')[1]); // Упрощенное получение ID
+                setUserId(userid);
+            } catch (error) {
+                console.error('Ошибка получения ID пользователя:', error);
+            }
+        }
+        
         loadQuizDetails();
-    }, [quizId]);
+    }, [quizId, location.pathname]);
+
+    // // Проверяем наличие accessKey в URL
+    // useEffect(() => {
+    //     const urlAccessKey = searchParams.get('accessKey');
+    //     if (urlAccessKey && quiz && !quiz.isPublic && !hasAccess) {
+    //         handleGrantAccess(urlAccessKey);
+    //     }
+    // }, [searchParams, quiz, hasAccess]);
 
     const loadAuthorInfo = async (userId) => {
         if (!userId) {
@@ -55,7 +111,6 @@ const QuizDetail = () => {
         setLoadingAuthor(true);
         try {
             const authorInfo = await getUserInfo(userId);
-            console.log('Информация об авторе загружена:', authorInfo);
             setAuthor(authorInfo);
         } catch (error) {
             console.warn('Не удалось загрузить информацию об авторе:', error);
@@ -66,25 +121,75 @@ const QuizDetail = () => {
     };
 
     const loadQuizDetails = async () => {
-        setLoading(true);
-        try {
-            // Загружаем информацию о квизе
-            const token = Cookies.get('token');
-            const quizData = await getQuizById(quizId, token);
-            console.log('Данные квиза:', quizData);
-            setQuiz(quizData);
-            
-            const authorId = quizData.authorId;
-            if (authorId) {
-                await loadAuthorInfo(authorId);
-            }
-            
-            // Загружаем лидерборд
+    setLoading(true);
+    try {
+        const token = Cookies.get('token');
+        
+        // ШАГ 1: Проверяем, есть ли уже сохраненный ключ в хуке или в localStorage
+        // В вашем хуке usePrivateQuizAccess ключ лежит в переменной accessKey
+        const currentKey = accessKey || localStorage.getItem(`quiz_access_${quizId}`);
+        
+        let quizData;
+        
+        // ШАГ 2: Вызываем getQuizById, ОБЯЗАТЕЛЬНО передавая currentKey третьим аргументом
+        // Если ключ есть — сервер отдаст полные данные, если нет — только заглушку
+        if (currentKey) {
+            console.log("КВИЗ ПО КОДУ", currentKey)
+            quizData = await getQuizById(quizId, token, currentKey);
+        }
+        else {
+            quizData = await getQuizById(quizId, token);
+        }
+        
+        console.log('Данные квиза:', quizData);
+        
+        // Если сервер всё равно говорит, что квиз приватный и данных нет (hasAccess еще не обновился)
+        if (quizData && !quizData.isPublic && !currentKey) {
+            setQuiz({
+                id: quizData.id,
+                isPublic: false,
+                isDeleted: false,
+                title: 'Приватный квиз',
+                description: 'Для просмотра этого квиза требуется специальный доступ',
+                questionsCount: 0,
+                timeLimit: quizData.timeLimit || null
+            });
+            setLeaderboard([]);
+            setLoading(false);
+            return;
+        }
+        
+        // Если ключ сработал или квиз публичный — сохраняем полные данные
+        setQuiz(quizData);
+        
+        // Теперь автор и лидерборд загрузятся правильно, так как у нас есть данные из quizData
+        const authorId = quizData.authorId;
+        if (authorId) {
+            await loadAuthorInfo(authorId);
+        }
+        
+        if (quizData.isPublic || currentKey) {
             await loadLeaderboard();
+        }
             
         } catch (error) {
             console.error('Ошибка при загрузке квиза:', error);
-            message.error('Не удалось загрузить информацию о квизе');
+            
+            if (error.response?.status === 403 || error.response?.status === 401) {
+                message.error('Нет доступа к этому квизу');
+                // Создаем объект квиза для отображения
+                setQuiz({
+                    id: quizId,
+                    title: 'Приватный квиз',
+                    description: 'Для просмотра этого квиза требуется специальный доступ',
+                    isPublic: false,
+                    isDeleted: false,
+                    questionsCount: 0
+                });
+                setLeaderboard([]);
+            } else {
+                message.error('Не удалось загрузить информацию о квизе');
+            }
         } finally {
             setLoading(false);
         }
@@ -93,7 +198,18 @@ const QuizDetail = () => {
     const loadLeaderboard = async () => {
         setLeaderboardLoading(true);
         try {
-            const leaderboardData = await getLeaderboard(quizId);
+            const token = Cookies.get('token');
+            const guestSessionId = Cookies.get('guestSessionId');
+            
+            // Для приватных квизов передаем ключ доступа
+            let leaderboardData;
+            if (quiz && !quiz.isPublic && accessKey) {
+                // Используем специальный endpoint или параметр
+                leaderboardData = await getLeaderboard(quizId, guestSessionId, accessKey);
+            } else {
+                leaderboardData = await getLeaderboard(quizId, guestSessionId);
+            }
+            
             console.log('Лидерборд загружен:', leaderboardData);
             setLeaderboard(leaderboardData);
         } catch (error) {
@@ -104,8 +220,32 @@ const QuizDetail = () => {
         }
     };
 
-    const handleStartQuiz = () => {
-        navigate(`/quiz/${quizId}/attempt`);
+   const handleStartQuiz = () => {
+        // 1. Базовая проверка на существование квиза
+        if (!quiz || quiz.isDeleted) {
+            message.error('Невозможно начать прохождение квиза');
+            return;
+        }
+        
+        // 2. Получаем актуальный ключ (из состояния хука или напрямую из хранилища)
+        const currentKey = accessKey || localStorage.getItem(`quiz_access_${quizId}`);
+        
+        // 3. Проверяем доступ для приватных квизов
+        // Если квиз приватный и у нас нет ключа ни в памяти, ни в localStorage
+        if (!quiz.isPublic && !hasAccess && !currentKey) {
+            message.warning('Для прохождения этого квиза требуется ключ доступа');
+            setShowAccessModal(true);
+            return;
+        }
+        
+        // 4. Выполняем переход
+        if (!quiz.isPublic && currentKey) {
+            // Если квиз приватный, обязательно прокидываем ключ в URL
+            navigate(`/quiz/${quizId}/attempt?accessKey=${currentKey}`);
+        } else {
+            // Если публичный — обычный переход
+            navigate(`/quiz/${quizId}/attempt`);
+        }
     };
 
     const formatTime = (timeString) => {
@@ -114,7 +254,6 @@ const QuizDetail = () => {
         }
         
         try {
-            // Если это строка вида "00:10:47"
             if (typeof timeString === 'string' && timeString.includes(':')) {
                 const parts = timeString.split(':');
                 if (parts.length === 3) {
@@ -139,28 +278,68 @@ const QuizDetail = () => {
         }
     };
 
-    // const formatDate = (dateString) => {
-    //     if (!dateString) return 'Недавно';
-        
-    //     try {
-    //         const date = new Date(dateString);
-    //         return date.toLocaleDateString('ru-RU', {
-    //             year: 'numeric',
-    //             month: 'short',
-    //             day: 'numeric',
-    //             hour: '2-digit',
-    //             minute: '2-digit'
-    //         });
-    //     } catch (error) {
-    //         console.error('Ошибка форматирования даты:', error);
-    //         return dateString;
-    //     }
-    // };
-
     const handleCopy = async (text) => {
         await navigator.clipboard.writeText(text);
         message.success('Текст скопирован');
-      };
+    };
+
+    // Функции для работы с ключами доступа
+    const handleGrantAccess = async (key = null) => {
+    const keyToUse = key || accessKeyInput;
+    
+    setAccessKeyLoading(true);
+    try {
+        const success = await grantAccess(keyToUse.toUpperCase());
+        if (success) {
+            message.success('Доступ предоставлен!');
+            setShowAccessModal(false);
+            setAccessKeyInput('');
+            
+            // Перезагружаем данные квиза с новым доступом
+            await loadQuizDetails();
+        }
+        } catch (error) {
+            console.error('Ошибка предоставления доступа:', error);
+            message.error('Ошибка предоставления доступа. Проверьте ключ.');
+        } finally {
+            setAccessKeyLoading(false);
+        }
+    };
+
+    const handleRevokeAccess = () => {
+        Modal.confirm({
+            title: 'Отозвать доступ?',
+            icon: <ExclamationCircleOutlined />,
+            content: 'Вы потеряете доступ к этому приватному квизу. Для повторного доступа потребуется ключ.',
+            okText: 'Отозвать',
+            cancelText: 'Отмена',
+            okButtonProps: { danger: true },
+            onOk: () => {
+                revokeAccess();
+                message.success('Доступ отозван');
+                loadQuizDetails();
+            }
+        });
+    };
+
+    const handleShare = async () => {
+        try {
+            const shareData = {
+                title: quiz?.title || 'Квиз',
+                text: quiz?.description || 'Интересный квиз',
+                url: window.location.href,
+            };
+            
+            if (navigator.share) {
+                await navigator.share(shareData);
+            } else {
+                await navigator.clipboard.writeText(window.location.href);
+                message.success('Ссылка скопирована в буфер обмена');
+            }
+        } catch (error) {
+            console.error('Ошибка при попытке поделиться:', error);
+        }
+    };
 
     // Столбцы для таблицы лидерборда
     const leaderboardColumns = [
@@ -186,15 +365,9 @@ const QuizDetail = () => {
             key: 'user',
             render: (record) => (
                 <Space>
-                    {/* <Avatar 
-                        size="small" 
-                        src={record.userId ? userPicture(record.userId) : null}
-                        icon={<UserOutlined />}
-                        style={{ backgroundColor: record.userId ? '#1890ff' : '#ccc' }}
-                    /> */}
                     <div>
                         <div style={{ fontWeight: '500', fontSize: '16px' }}>
-                        {record.userName === 'Guest' ? 'Гость' : record.userName}
+                            {record.userName === 'Guest' ? 'Гость' : record.userName}
                         </div>
                     </div>
                 </Space>
@@ -223,7 +396,6 @@ const QuizDetail = () => {
                 );
             },
             align: 'center',
-            // sorter: (a, b) => b.score - a.score,
         },
         {
             title: 'Время',
@@ -236,16 +408,9 @@ const QuizDetail = () => {
             ),
             align: 'center',
         },
-        // {
-        //     title: 'Дата',
-        //     key: 'date',
-        //     dataIndex: 'completedAt',
-        //     render: (date) => formatDate(date),
-        //     width: 150,
-        // },
     ];
 
-    if (loading) {
+    if (loading || accessLoading) {
         return (
             <Layout>
                 <HeaderComponent />
@@ -256,7 +421,7 @@ const QuizDetail = () => {
         );
     }
 
-    if (!quiz ) {
+    if (!quiz) {
         return (
             <Layout>
                 <HeaderComponent />
@@ -282,6 +447,129 @@ const QuizDetail = () => {
         );
     }
 
+    const isOwner = userId && quiz.authorId === userId;
+
+    // Рендер кнопки "Начать прохождение"
+    const renderStartButton = () => {
+        if (quiz.isDeleted) {
+            return (
+                <Button
+                    type="primary"
+                    disabled
+                    size="large"
+                    icon={<PlayCircleOutlined />}
+                >
+                    Квиз удалён
+                </Button>
+            );
+        }
+
+        if (!quiz.isPublic && !hasAccess) {
+            return (
+                <Button
+                    type="primary"
+                    size="large"
+                    icon={<LockOutlined />}
+                    onClick={() => setShowAccessModal(true)}
+                    style={{ 
+                        backgroundColor: '#ff4d4f',
+                        borderColor: '#ff4d4f',
+                        boxShadow: '0 4px 12px rgba(255, 77, 79, 0.4)'
+                    }}
+                >
+                    Получить доступ
+                </Button>
+            );
+        }
+
+        return (
+            <Button
+                type="primary"
+                size="large"
+                icon={<PlayCircleOutlined />}
+                onClick={handleStartQuiz}
+                style={{ 
+                    boxShadow: '0 4px 12px rgba(24, 144, 255, 0.4)'
+                }}
+            >
+                Начать прохождение
+            </Button>
+        );
+    };
+
+    // Рендер информации о доступе
+    const renderAccessInfo = () => {
+        if (!quiz.isPublic && hasAccess) {
+            return (
+                <Alert
+                    message="Доступ предоставлен по ключу"
+                    description={
+                        <Space direction="vertical" size="small">
+                            <Space>
+                                <Tag icon={<KeyOutlined />} color="green">
+                                    Ключ: {accessKey}
+                                </Tag>
+                                <Button 
+                                    type="text" 
+                                    size="small" 
+                                    icon={<CopyOutlined />}
+                                    onClick={() => {
+                                        if (copyAccessKey()) {
+                                            message.success('Ключ скопирован');
+                                        }
+                                    }}
+                                >
+                                    Копировать
+                                </Button>
+                                <Button 
+                                    type="text" 
+                                    size="small" 
+                                    danger
+                                    icon={<LockOutlined />}
+                                    onClick={handleRevokeAccess}
+                                >
+                                    Отозвать доступ
+                                </Button>
+                            </Space>
+                            <Text type="secondary" style={{ fontSize: '12px' }}>
+                                Ключ сохранен в вашем браузере
+                            </Text>
+                        </Space>
+                    }
+                    type="success"
+                    showIcon
+                    style={{ marginBottom: 16 }}
+                />
+            );
+        }
+
+        if (!quiz.isPublic && !hasAccess) {
+            return (
+                <Alert
+                    message="Приватный квиз"
+                    description={
+                        <Space direction="vertical" size="small">
+                            <Text>Для доступа к этому квизу требуется специальный ключ.</Text>
+                            <Button 
+                                type="dashed" 
+                                size="small"
+                                icon={<KeyOutlined />}
+                                onClick={() => setShowAccessModal(true)}
+                            >
+                                Ввести ключ доступа
+                            </Button>
+                        </Space>
+                    }
+                    type="warning"
+                    showIcon
+                    style={{ marginBottom: 16 }}
+                />
+            );
+        }
+
+        return null;
+    };
+
     return (
         <Layout>
             <HeaderComponent />
@@ -297,6 +585,9 @@ const QuizDetail = () => {
                     Вернуться к каталогу
                 </Button>
 
+                {/* Информация о доступе */}
+                {renderAccessInfo()}
+
                 {/* Основная информация о квизе */}
                 <Card 
                     style={{ 
@@ -311,77 +602,59 @@ const QuizDetail = () => {
                                 <Flex justify='space-between' wrap gap='middle'>
                                     <Title level={2} style={{ margin: 0 }}>
                                         {quiz.title}
+                                        {!quiz.isPublic && (
+                                            <Tag 
+                                                color="orange" 
+                                                icon={<LockOutlined />}
+                                                style={{ marginLeft: 8 }}
+                                            >
+                                                Приватный
+                                            </Tag>
+                                        )}
                                     </Title>
-                                    {/* {!quiz.isDeleted && <Button
-                                        type="primary"
-                                        size="large"
-                                        icon={<PlayCircleOutlined />}
-                                        onClick={handleStartQuiz}
-                                        style={{ 
-                                            // height: '56px', 
-                                            // padding: '0 48px',
-                                            // fontSize: '18px',
-                                            boxShadow: '0 4px 12px rgba(24, 144, 255, 0.4)'
-                                        }}
-                                    >
-                                        Начать прохождение
-                                    </Button>} */}
                                 </Flex>
                                 
                                 {quiz.isDeleted && 
-                                    <div style={{ padding: '0px', width: '100%', margin: '0 auto' }}>
                                     <Alert
                                         title="Квиз удалён"
-                                        description="Этот квиз был удалён, поэтому пройти его уже не получится. Проверьте, правильно ли указан URL или вернитесь на главную страницу."
+                                        description="Этот квиз был удалён, поэтому пройти его уже не получится."
                                         type='error'
                                         showIcon
                                     />
-                                </div>}
+                                }
 
-                                {/* Описание с возможностью сворачивания */}
+                                {/* Описание */}
                                 {quiz.description && 
-                                <div>
-                                <Collapse 
-                                    bordered={false} 
-                                    // ghost
-                                    defaultActiveKey={['1']}
-                                    style={{ padding: '0'}}
-                                >
-                                    <Panel 
-                                        header={
-                                            <Text strong style={{ fontSize: '16px' }}>
-                                                Описание квиза
-                                            </Text>
-                                        } 
-                                        key="1"
-                                        style={{ padding: 0, border: 'none' }}
+                                    <Collapse 
+                                        bordered={false} 
+                                        defaultActiveKey={['1']}
+                                        style={{ padding: '0'}}
                                     >
-                                        <Paragraph style={{ margin: 0, fontSize: '15px', lineHeight: 1.6 }}>
-                                            {quiz.description || 'Этот квиз не содержит описания.'}
-                                        </Paragraph>
-                                    </Panel>
-                                </Collapse>
-                                </div>}
+                                        <Panel 
+                                            header={
+                                                <Text strong style={{ fontSize: '16px' }}>
+                                                    Описание квиза
+                                                </Text>
+                                            } 
+                                            key="1"
+                                            style={{ padding: 0, border: 'none' }}
+                                        >
+                                            <Paragraph style={{ margin: 0, fontSize: '15px', lineHeight: 1.6 }}>
+                                                {quiz.description}
+                                            </Paragraph>
+                                        </Panel>
+                                    </Collapse>
+                                }
                             </Space>
                         </div>
 
-                        {!quiz.isDeleted && <Button
-                                type="primary"
-                                size="large"
-                                icon={<PlayCircleOutlined />}
-                                onClick={handleStartQuiz}
-                                style={{ 
-                                    // height: '56px', 
-                                    // padding: '0 48px',
-                                    // fontSize: '18px',
-                                    boxShadow: '0 4px 12px rgba(24, 144, 255, 0.4)'
-                                }}
-                            >
-                                Начать прохождение
-                            </Button>}
+                        {/* Кнопка начала прохождения */}
+                        <Flex justify="center">
+                            {renderStartButton()}
+                        </Flex>
                         
+                        {/* Информационные карточки */}
                         <Row gutter={[16, 16]}>
-
                             {/* Информация об авторе */}
                             <Col xs={24} sm={12} md={8}>
                                 <Card 
@@ -400,16 +673,16 @@ const QuizDetail = () => {
                                         <Space align="center">
                                             <Avatar 
                                                 size="middle"
-                                                src={author.id ? userPicture(author.id) : null}
+                                                src={author?.id ? userPicture(author.id) : null}
                                                 icon={<UserOutlined />}
                                                 style={{ 
-                                                    backgroundColor: author.id ? '#1890ff' : '#ccc',
+                                                    backgroundColor: author?.id ? '#1890ff' : '#ccc',
                                                     fontSize: '20px'
                                                 }}
                                             />
                                             <div>
                                                 <Text strong style={{ display: 'block', fontSize: '16px' }}>
-                                                    {author.name}
+                                                    {author?.name || 'Неизвестный автор'}
                                                 </Text>
                                             </div>
                                         </Space>
@@ -433,14 +706,13 @@ const QuizDetail = () => {
                                             Количество вопросов
                                         </Text>
                                         <Space align='baseline' style={{ justifyContent: 'left', width: '100%' }}>
-
                                             {quiz.questionsCount !== 0 ? <>
-                                            <Text strong style={{ fontSize: '24px' }}>
-                                                {quiz.questionsCount}
-                                            </Text>
-                                            <Text style={{ fontSize: '14px' }}>
-                                                вопрос{pluralize(quiz.questionsCount)}
-                                            </Text></> 
+                                                <Text strong style={{ fontSize: '24px' }}>
+                                                    {quiz.questionsCount}
+                                                </Text>
+                                                <Text style={{ fontSize: '14px' }}>
+                                                    вопрос{pluralize(quiz.questionsCount)}
+                                                </Text></> 
                                             : <Text style={{ fontSize: '18px' }}>
                                                 Нет вопросов
                                             </Text>}
@@ -465,17 +737,6 @@ const QuizDetail = () => {
                                             Ограничение по времени
                                         </Text>
                                         <Space align="center" style={{ justifyContent: 'left', width: '100%' }}>
-                                            {/* <div style={{ 
-                                                backgroundColor: '#faad14', 
-                                                borderRadius: '50%', 
-                                                width: 48, 
-                                                height: 48,
-                                                display: 'flex',
-                                                alignItems: 'center',
-                                                justifyContent: 'center'
-                                            }}>
-                                                <ClockCircleOutlined style={{ fontSize: '24px', color: 'white' }} />
-                                            </div> */}
                                             <Text style={{ margin: 0, fontSize: quiz.timeLimit && quiz.timeLimit !== "00:00:00" ? '24px' : '18px' }}>
                                                 {quiz.timeLimit === '00:00:00' ? 'Без ограничений' : formatTime(quiz.timeLimit)}
                                             </Text>
@@ -484,111 +745,208 @@ const QuizDetail = () => {
                                 </Card>
                             </Col>
                         </Row>
-                        
-                        {/* Статус и категория квиза */}
-                        <div>
-                            <Space wrap style={{ marginTop: 8 }}>
-                                <Tag 
-                                    color={quiz.isPublic ? "green" : "orange"}
-                                    style={{ fontSize: '14px', padding: '4px 12px' }}
-                                >
-                                    {quiz.isPublic ? "📢 Публичный" : "🔒 Приватный"}
-                                </Tag>
-                                {quiz.category && (
-                                    <Tag 
-                                        color="blue" 
-                                        style={{ fontSize: '14px', padding: '4px 12px' }}
-                                    >
-                                        Категория: {quiz.category}
-                                    </Tag>
-                                )}
-                            </Space>
-                        </div>
                     </div>
                 </Card>
 
-                {/* Лидерборд */}
-                <Card
-                    title={
-                        <Space>
-                            <TrophyOutlined style={{ color: '#faad14', fontSize: '20px' }} />
-                            <Title level={4} style={{ margin: 0 }}>
-                                Таблица лидеров
-                            </Title>
-                            <Tag icon={<TeamOutlined />} color="gold">
-                                {leaderboard.length} участник{pluralize(leaderboard.length)}
-                            </Tag>
-                        </Space>
-                    }
-                    style={{
-                        borderRadius: 12,
-                        boxShadow: '0 2px 8px rgba(0,0,0,0.06)'
-                    }}
-                    extra={
-                        <Button 
-                            type="link" 
-                            onClick={loadLeaderboard}
-                            loading={leaderboardLoading}
-                            icon={<TrophyOutlined />}
-                        >
-                            Обновить
-                        </Button>
-                    }
-                >
-                    {leaderboard.length > 0 ? (
-                        <Table
-                            columns={leaderboardColumns}
-                            dataSource={leaderboard}
-                            loading={leaderboardLoading}
-                            rowKey={(record, index) => record.id || index}
-                            pagination={{
-                                pageSize: 10,
-                                // showSizeChanger: true,
-                                showQuickJumper: true,
-                                showTotal: (total, range) => 
-                                    `${range[1]} из ${total} записей`
+                {/* Вкладки */}
+                <Tabs activeKey={activeTab} onChange={setActiveTab}>
+                    <TabPane 
+                        key="overview"
+                    >
+                        {/* Лидерборд */}
+                        <Card
+                            title={
+                                <Space>
+                                    <TrophyOutlined style={{ color: '#faad14', fontSize: '20px' }} />
+                                    <Title level={4} style={{ margin: 0 }}>
+                                        Таблица лидеров
+                                    </Title>
+                                    <Tag icon={<TeamOutlined />} color="gold">
+                                        {leaderboard.length} участник{pluralize(leaderboard.length)}
+                                    </Tag>
+                                </Space>
+                            }
+                            style={{
+                                borderRadius: 12,
+                                boxShadow: '0 2px 8px rgba(0,0,0,0.06)',
+                                marginTop: 16
                             }}
-                            scroll={{ x: true }}
-                            style={{ marginTop: 16 }}
-                        />
-                    ) : (
-                        <Alert
-                            title="Таблица лидеров пуста"
-                            description="Будьте первым, кто пройдет этот квиз и попадет в историю! Пройдите квиз, чтобы ваш результат появился здесь."
-                            type="info"
-                            showIcon
-                            icon={<TrophyOutlined />}
-                            action={
+                            extra={
                                 <Button 
-                                    type="primary" 
-                                    onClick={handleStartQuiz}
-                                    disabled={!isAuthenticated && !quiz.isPublic}
-                                    size="small"
+                                    type="link" 
+                                    onClick={loadLeaderboard}
+                                    loading={leaderboardLoading}
+                                    icon={<TrophyOutlined />}
                                 >
-                                    Стать первым
+                                    Обновить
                                 </Button>
                             }
-                        />
+                        >
+                            {leaderboard.length > 0 ? (
+                                <Table
+                                    columns={leaderboardColumns}
+                                    dataSource={leaderboard}
+                                    loading={leaderboardLoading}
+                                    rowKey={(record, index) => record.id || index}
+                                    pagination={{
+                                        pageSize: 10,
+                                        showQuickJumper: true,
+                                        showTotal: (total, range) => 
+                                            `${range[0]}-${range[1]} из ${total} записей`
+                                    }}
+                                    scroll={{ x: true }}
+                                    style={{ marginTop: 16 }}
+                                />
+                            ) : (
+                                <Alert
+                                    title={quiz.isPublic ? "Таблица лидеров пуста" : "Таблица лидеров недоступна"}
+                                    description={
+                                        quiz.isPublic 
+                                            ? "Будьте первым, кто пройдет этот квиз и попадет в историю!"
+                                            : "Таблица лидеров доступна только участникам с доступом к квизу"
+                                    }
+                                    type="info"
+                                    showIcon
+                                    icon={<TrophyOutlined />}
+                                    action={
+                                        quiz.isPublic && (
+                                            <Button 
+                                                type="primary" 
+                                                onClick={handleStartQuiz}
+                                                disabled={!isAuthenticated}
+                                                size="small"
+                                            >
+                                                Стать первым
+                                            </Button>
+                                        )
+                                    }
+                                />
+                            )}
+                            <div style={{ 
+                                marginTop: 24, 
+                                padding: 16, 
+                                backgroundColor: '#fafafa', 
+                                borderRadius: 8,
+                                border: '1px dashed #d9d9d9'
+                            }}>
+                                <Space orientation="vertical" size="small">
+                                    <Text strong>Как попасть в таблицу лидеров?</Text>
+                                    <Text type="secondary">
+                                        1. Пройдите квиз полностью<br/>
+                                        2. Наберите как можно больше правильных ответов<br/>
+                                        3. Постарайтесь пройти квиз быстрее других<br/>
+                                        4. Ваш результат автоматически появится в таблице
+                                    </Text>
+                                </Space>
+                            </div>
+                        </Card>
+                    </TabPane>
+                    
+                    {isOwner && (
+                        <TabPane 
+                            tab={
+                                <span>
+                                    <BarChartOutlined />
+                                    Статистика
+                                </span>
+                            } 
+                            key="statistics"
+                        >
+                            <Card style={{ marginTop: 16 }}>
+                                <Alert
+                                    message="Статистика квиза"
+                                    description="Для просмотра детальной статистики перейдите в специальный раздел"
+                                    type="info"
+                                    showIcon
+                                    action={
+                                        <Button 
+                                            type="primary" 
+                                            onClick={() => navigate(`/quiz/${quizId}/statistics`)}
+                                        >
+                                            Перейти к статистике
+                                        </Button>
+                                    }
+                                />
+                            </Card>
+                        </TabPane>
                     )}
-                    <div style={{ 
-                        marginTop: 24, 
-                        padding: 16, 
-                        backgroundColor: '#fafafa', 
-                        borderRadius: 8,
-                        border: '1px dashed #d9d9d9'
-                    }}>
-                        <Space orientation="vertical" size="small">
-                            <Text strong>Как попасть в таблицу лидеров?</Text>
-                            <Text type="secondary">
-                                1. Пройдите квиз полностью<br/>
-                                2. Наберите как можно больше правильных ответов<br/>
-                                3. Постарайтесь пройти квиз быстрее других<br/>
-                                4. Ваш результат автоматически появится в таблице
-                            </Text>
-                        </Space>
-                    </div>
-                </Card>
+                </Tabs>
             </div>
+
+            {/* Модальное окно для ввода ключа доступа */}
+            <Modal
+                title={
+                    <Space>
+                        <KeyOutlined style={{ color: '#1890ff' }} />
+                        <span>Доступ к приватному квизу</span>
+                    </Space>
+                }
+                open={showAccessModal}
+                onCancel={() => {
+                    setShowAccessModal(false);
+                    setAccessKeyInput('');
+                }}
+                footer={null}
+                width={500}
+                centered
+            >
+                <Space direction="vertical" size="middle" style={{ width: '100%' }}>
+                    <Alert
+                        message="Требуется ключ доступа"
+                        description="Этот квиз доступен только по специальному приглашению. Получите ключ у автора квиза."
+                        type="warning"
+                        showIcon
+                    />
+                    
+                    <Form
+                        onFinish={() => handleGrantAccess()}
+                        layout="vertical"
+                    >
+                        <Form.Item
+                            label="Ключ доступа (5 символов)"
+                            required
+                        >
+                            <Input
+                                value={accessKeyInput}
+                                onChange={(e) => setAccessKeyInput(e.target.value.toUpperCase())}
+                                placeholder="ABCDE"
+                                maxLength={5}
+                                style={{ 
+                                    textTransform: 'uppercase',
+                                    fontFamily: 'monospace',
+                                    fontSize: '18px',
+                                    letterSpacing: '4px',
+                                    textAlign: 'center'
+                                }}
+                            />
+                        </Form.Item>
+                        
+                        <Form.Item>
+                            <div style={{ display: 'flex', gap: 8 }}>
+                                <Button 
+                                    onClick={() => setShowAccessModal(false)}
+                                    style={{ flex: 1 }}
+                                >
+                                    Отмена
+                                </Button>
+                                <Button 
+                                    type="primary" 
+                                    htmlType="submit"
+                                    loading={accessKeyLoading}
+                                    icon={<CheckCircleOutlined />}
+                                    style={{ flex: 1 }}
+                                >
+                                    Получить доступ
+                                </Button>
+                            </div>
+                        </Form.Item>
+                    </Form>
+                    
+                    <Text type="secondary" style={{ fontSize: '12px' }}>
+                        Ключ будет сохранен в вашем браузере для будущих посещений
+                    </Text>
+                </Space>
+            </Modal>
         </Layout>
     );
 };

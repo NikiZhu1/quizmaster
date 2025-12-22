@@ -99,40 +99,38 @@ export const createQuiz = async (token, quizData) => {
  * @param {string} token - Токен пользователя
  * @returns {Promise<Object>} - Объект квиза
  */
-export const getQuizById = async (id, token = null) => {
-  if (!id || id <= 0) {
-    throw new Error('Неверный ID квиза');
-  }
+export const getQuizById = async (id, token, accessKey = null) => {
+    try {
+        const config = {
+            headers: token ? { 'Authorization': `Bearer ${token}` } : {}
+        };
+        
+        // Если есть accessKey, добавляем его в URL как query параметр
+        let url = `/Quiz/${id}`;
+        if (accessKey) {
+            url = `Quiz/access/${encodeURIComponent(accessKey)}`;
+        }
+        
+        console.log('Запрос квиза:', { url, accessKey });
+        
+        const response = await apiClient.get(url, config);
+        const quiz = response.data;
 
-  try {
-    const response = await apiClient.get(`/Quiz/${id}`, {
-      headers: {
-        'Authorization': `Bearer ${token}`
-      }
-    });
-    const quiz = response.data;
+        // Получаем вопросы и считаем их количество
+        const questions = await getQuizQuestions(id, accessKey);
+        const questionsCount = questions?.length ?? 0;
 
-    // Получаем вопросы и считаем их количество
-    const questions = await getQuizQuestions(id, quiz.privateAccessKey);
-    const questionsCount = questions?.length ?? 0;
+        const result = {
+          ...quiz,
+          questionsCount,
+        };
 
-    const result = {
-      ...quiz,
-      questionsCount,
-    };
-
-    console.log(`Получен квиз с ID ${id}:`, result);
-    return result;
-
-  } catch (error) {
-    if (error.response?.status === 404) {
-      console.warn(`Квиз с ID ${id} не найден`);
-      throw new Error(`Квиз с ID ${id} не найден`);
+        console.log('Получен квиз с ID', id || accessKey, ':', result);
+        return result;
+    } catch (error) {
+        console.error(`Ошибка при получении квиза ${id || accessKey}:`, error);
+        throw error;
     }
-
-    console.error(`Ошибка при получении квиза ${id}:`, error);
-    throw error;
-  }
 };
 
 

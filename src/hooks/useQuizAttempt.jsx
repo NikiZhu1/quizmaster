@@ -5,13 +5,13 @@ import Cookies from 'js-cookie';
 
 export const useQuizAttempt = () => {
   const [attempt, setAttempt] = useState(null);
-  const [quizInfo, setQuizInfo] = useState(null); // Добавляем для хранения информации о квизе
+  const [quizInfo, setQuizInfo] = useState(null);
   const [questions, setQuestions] = useState([]);
   const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0);
-  const [answers, setAnswers] = useState({}); // Сохраняем {questionId: [optionIds]}
+  const [answers, setAnswers] = useState({});
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
-  const [timeLeft, setTimeLeft] = useState(null); // Оставшееся время в секундах
+  const [timeLeft, setTimeLeft] = useState(null);
   const [visitedQuestions, setVisitedQuestions] = useState(new Set());
   const timerRef = useRef(null);
 
@@ -85,12 +85,11 @@ export const useQuizAttempt = () => {
     localStorage.removeItem(CURRENT_QUESTION_KEY);
   }, []);
 
-  // Функция для преобразования строки времени "00:10:47" в секунды
+  // Функция для преобразования строки времени "hh:mm:ss" в секунды
   const parseTimeStringToSeconds = (timeString) => {
     if (!timeString) return null;
     
     try {
-      // Формат: "00:10:47" (часы:минуты:секунды)
       const parts = timeString.split(':');
       if (parts.length === 3) {
         const hours = parseInt(parts[0]) || 0;
@@ -115,7 +114,7 @@ export const useQuizAttempt = () => {
       const elapsedSeconds = Math.floor((now - start) / 1000);
       const remainingSeconds = timeLimitSeconds - elapsedSeconds;
       
-      return Math.max(0, remainingSeconds); // Не меньше 0
+      return Math.max(0, remainingSeconds);
     } catch (error) {
       console.error('Ошибка вычисления оставшегося времени:', error);
       return null;
@@ -142,7 +141,7 @@ export const useQuizAttempt = () => {
       }
       
       // Получаем информацию о квизе
-      const quizData = await quizApi.getQuizById(quizId, token);
+      const quizData = await quizApi.getQuizById(quizId, token, accessKey);
       setQuizInfo(quizData);
       
       // Получаем вопросы квиза
@@ -184,7 +183,7 @@ export const useQuizAttempt = () => {
   };
 
   // Получить данные попытки
-  const getAttemptById = async (attemptId) => {
+  const getAttemptById = async (attemptId, accessKey = null) => {
     setLoading(true);
     setError(null);
 
@@ -204,11 +203,11 @@ export const useQuizAttempt = () => {
       }
       
       // Получаем информацию о квизе
-      const quizData = await quizApi.getQuizById(attemptData.quizId, token);
+      const quizData = await quizApi.getQuizById(attemptData.quizId, token, accessKey);
       setQuizInfo(quizData);
       
       // Получаем вопросы квиза
-      const questionsData = await quizApi.getQuizQuestions(quizData.id, quizData.privateAccessKey);
+      const questionsData = await quizApi.getQuizQuestions(quizData.id, accessKey);
       setQuestions(questionsData);
 
       // Загружаем сохраненные ответы

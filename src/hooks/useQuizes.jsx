@@ -1,7 +1,7 @@
 import React, { useEffect, useState, useCallback, useRef } from 'react';
 import * as api from '../API methods/quizMethods.jsx';
 import * as categoryApi from '../API methods/categoryMethods.jsx';
-import { useUsers } from './useUsers'; // Добавляем импорт хука пользователей
+import { useUsers } from './useUsers';
 
 export const useQuizes = () => {
     const [quizzes, setQuizzes] = useState([]);
@@ -9,8 +9,6 @@ export const useQuizes = () => {
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState(null);
     const [categoryLoading, setCategoryLoading] = useState(false);
-    
-    // Используем хук пользователей для получения метода GetUserIdFromJWT
     const { GetUserIdFromJWT, getUserInfo } = useUsers();
 
     // Метод для получения всех категорий
@@ -92,34 +90,45 @@ export const useQuizes = () => {
             let quizzesData;
             
             if (categoryId) {
-                // Получаем квизы только выбранной категории
                 const category = categories.find(c => c.CategoryType === categoryId);
                 if (category) {
                     quizzesData = await getQuizzesByCategory(category.Name);
                 } else {
-                    // Если категория не найдена в локальном списке, загружаем все квизы
                     quizzesData = await api.getAllQuizzes();
                 }
             } else {
-                // Получаем все квизы
                 quizzesData = await api.getAllQuizzes();
             }
             
-            // Для каждого квиза получаем информацию об авторе
             const quizzesWithAuthors = await Promise.all(
                 quizzesData.map(async (quiz) => {
                     try {
+                        // 1. Пытаемся достать ключ из хранилища для приватного квиза
+                        const storedKey = localStorage.getItem(`quiz_access_${quiz.id}`);
+                        
+                        // 2. Запрашиваем вопросы с ключом, чтобы получить корректное количество
+                        const questions = await api.getQuizQuestions(quiz.id, storedKey || quiz.privateAccessKey);
+                        
+                        // 3. Получаем информацию об авторе
+                        let authorName = 'Неизвестный автор';
                         if (quiz.authorId) {
                             const authorInfo = await getUserInfo(quiz.authorId);
-                            return {
-                                ...quiz,
-                                authorName: authorInfo?.userName || authorInfo?.username
-                            };
+                            authorName = authorInfo?.userName || authorInfo?.username || 'Неизвестный автор';
                         }
-                        return quiz;
+
+                        // 4. Возвращаем ЕДИНЫЙ объект со всеми новыми данными
+                        return {
+                            ...quiz,
+                            authorName,
+                            questionsCount: questions?.length || 0 // Это исправит "Нет вопросов"
+                        };
                     } catch (error) {
-                        console.warn(`Не удалось загрузить автора для квиза ${quiz.id}:`, error);
-                        return quiz;
+                        console.warn(`Ошибка обработки квиза ${quiz.id}:`, error);
+                        return {
+                            ...quiz,
+                            authorName: 'Неизвестный автор',
+                            questionsCount: 0
+                        };
                     }
                 })
             );
@@ -132,7 +141,6 @@ export const useQuizes = () => {
             setLoading(false);
         }
     };
-
     // Метод для проверки прав доступа к статистике квиза
     const checkQuizOwnership = async (quizId, token) => {
         try {
@@ -151,13 +159,12 @@ export const useQuizes = () => {
         }
     };
 
-    const getQuizById = async (id, token) => {
+    const getQuizById = async (id, token, accessKey = null) => {
         setLoading(true);
         setError(null);
 
         try {
-            const quizData = await api.getQuizById(id, token);
-            
+            const quizData = await api.getQuizById(id, token, accessKey);
             return quizData;
         } catch (err) {
             setError(err);
@@ -255,7 +262,7 @@ export const useQuizes = () => {
         deleteQuiz,
         getQuizQuestions,
         connectToQuizByCode,
-        checkQuizOwnership, // Добавляем метод проверки прав
+        checkQuizOwnership,
         
         // Состояния
         quizzes,

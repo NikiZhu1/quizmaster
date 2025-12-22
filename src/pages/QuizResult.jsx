@@ -80,7 +80,19 @@ export default function QuizResult() {
                 // 3. Загружаем информацию о квизе и вопросы
                 if (attemptData.quizId) {
                     try {
-                        const quizData = await getQuizById(attemptData.quizId, token);
+                        const currentKey = localStorage.getItem(`quiz_access_${attemptData.quizId}`);
+                        let quizData;
+        
+                        // ШАГ 2: Вызываем getQuizById, ОБЯЗАТЕЛЬНО передавая currentKey третьим аргументом
+                        // Если ключ есть — сервер отдаст полные данные, если нет — только заглушку
+                        if (currentKey) {
+                            console.log("КВИЗ ПО КОДУ", currentKey)
+                            quizData = await getQuizById(attemptData.quizId, token, currentKey);
+                        }
+                        else {
+                            quizData = await getQuizById(attemptData.quizId, token);
+                        }
+
                         setQuizInfo(quizData);
                         
                         // 4. Загружаем вопросы квиза (без правильных ответов)

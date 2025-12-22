@@ -1,7 +1,5 @@
 import { useState } from 'react';
 import Cookies from 'js-cookie';
-
-//Методы
 import * as api from '../API methods/usersMethods.jsx'; 
 
 export const useUsers = () => {
@@ -121,7 +119,6 @@ export const useUsers = () => {
         }
     };
 
-    // В useUsers.js добавьте метод для смены пароля
     const changePassword = async (userId, oldPassword, newPassword) => {
         setLoading(true);
         setError(null);
@@ -137,7 +134,6 @@ export const useUsers = () => {
         } catch (err) {
             console.error('Ошибка при смене пароля:', err);
             
-            // Пробрасываем ошибку дальше для обработки в компоненте
             if (err.response?.data) {
                 throw new Error(err.response.data);
             }

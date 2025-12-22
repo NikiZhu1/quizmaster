@@ -627,34 +627,7 @@ export default function CreateQuestions() {
                                                 maxLength={1000}
                                             />
                                         </Form.Item>
-
-                                        {/* Категория
-                                        <Form.Item
-                                            name="category"
-                                            label="Категория"
-                                            style={{ marginTop: 16 }}
-                                        >
-                                            <Select
-                                                placeholder="Выберите категорию"
-                                                size="large"
-                                                loading={categoriesLoading}
-                                                suffixIcon={<AppstoreOutlined />}
-                                            >
-                                                {categories.map(category => (
-                                                    <Option key={category.CategoryType} value={category.CategoryType}>
-                                                        <Space>
-                                                            <Tag color={getCategoryColor(category.CategoryType)}>
-                                                                {getCategoryName(category.CategoryType)}
-                                                            </Tag>
-                                                            <Text type="secondary">
-                                                                ({category.Name})
-                                                            </Text>
-                                                        </Space>
-                                                    </Option>
-                                                ))}
-                                            </Select>
-
-                                        </Form.Item> */}
+                                        
                                         <Form.Item
                                             name="category"
                                             label="Категория"

@@ -105,26 +105,7 @@ function QuizCard({ quiz }) {
             </Tag>
         );
     };
-    // const getCategoryDisplay = () => {
-    //     // Проверяем наличие категории в данных квиза
-    //     const categoryValue = quiz.category !== undefined && quiz.category !== null 
-    //         ? quiz.category 
-    //         : (quiz.categoryId !== undefined && quiz.categoryId !== null 
-    //             ? quiz.categoryId 
-    //             : null);
-        
-    //     if (categoryValue === null) return null;
-        
-    //     return (
-    //         <Tag 
-    //             color={getCategoryColor(categoryValue)}
-    //             style={{ margin: 0, fontSize: '12px' }}
-    //         >
-    //             {getCategoryName(categoryValue)}
-    //         </Tag>
-    //     );
-    // };
-
+    
     return (
         <Card
             hoverable
