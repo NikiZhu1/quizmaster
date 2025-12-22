@@ -5,6 +5,7 @@ import {
 } from 'antd';
 import { useNavigate } from 'react-router-dom';
 import Cookies from 'js-cookie';
+import { KeyOutlined } from '@ant-design/icons';
 
 // Компоненты
 import QuizCard from '../components/quizCard';
@@ -12,7 +13,10 @@ import HeaderComponent from '../components/HeaderComponent';
 
 // Методы
 import { useQuizes } from '../hooks/useQuizes';
-import { getCategoryName, formatCategoriesFromApi, getCategoryOriginalName } from '../utils/categoryUtils';
+import { getCategoryName, formatCategoriesFromApi } from '../utils/categoryUtils';
+
+import { Form, Input, Alert, Modal } from 'antd';
+import { InfoCircleOutlined, LinkOutlined } from '@ant-design/icons';
 
 const { Title } = Typography;
 const { Option } = Select;
@@ -24,6 +28,7 @@ export default function Catalog() {
     const [selectedCategory, setSelectedCategory] = useState(null);
     const [categoriesLoading, setCategoriesLoading] = useState(false);
     const [availableCategories, setAvailableCategories] = useState([]);
+    const [showPrivateKeyModal, setShowPrivateKeyModal] = useState(false);
 
     useEffect(() => {
         loadQuizzes();
@@ -129,6 +134,10 @@ export default function Catalog() {
         }
     };
 
+    const handlePrivateKeyClick = () => {
+        setShowPrivateKeyModal(true);
+    };
+
     const handleCategoryChange = (value) => {
         console.log('Выбрана категория:', value, getCategoryName(value));
         setSelectedCategory(value);
@@ -187,6 +196,40 @@ export default function Catalog() {
                         <Button type="primary" onClick={handleCreateQuiz}>Создать квиз</Button>
                         <Button onClick={handleMyQuizzes}>Мои квизы</Button>
                     </Space>
+                </Flex>
+            </Card>
+
+            {/* Новая плашка для приватных квизов */}
+            <Card 
+                style={{ 
+                    margin: '0px 40px 16px 40px',
+                    borderRadius: '8px',
+                    backgroundColor: '#fff7e6',
+                    border: '1px solid #ffd591'
+                }}
+                styles={{ body: { padding: '12px 24px' } }}
+            >
+                <Flex justify="space-between" align="center" wrap="wrap" gap="middle">
+                    <Space direction="vertical" size="small">
+                        <Typography.Text style={{ fontSize: '15px', fontWeight: 500 }}>
+                            <KeyOutlined style={{ marginRight: 8, color: '#fa8c16' }} />
+                            Доступ к приватным квизам
+                        </Typography.Text>
+                        <Typography.Text type="secondary" style={{ fontSize: '13px' }}>
+                            Есть ключ доступа? Присоединяйтесь к приватным квизам по приглашению
+                        </Typography.Text>
+                    </Space>
+                    <Button 
+                        type="primary" 
+                        icon={<KeyOutlined />}
+                        onClick={handlePrivateKeyClick}
+                        style={{ 
+                            backgroundColor: '#fa8c16',
+                            borderColor: '#fa8c16'
+                        }}
+                    >
+                        Ввести ключ доступа
+                    </Button>
                 </Flex>
             </Card>
 
@@ -261,6 +304,155 @@ export default function Catalog() {
                     </Row>
                 )}
             </div>
+
+            {/* Модальное окно для ввода ключа приватного квиза */}
+            {showPrivateKeyModal && (
+                <PrivateQuizKeyModal 
+                    visible={showPrivateKeyModal}
+                    onClose={() => setShowPrivateKeyModal(false)}
+                />
+            )}
         </Layout>
     );
 }
+
+// Компонент модального окна для ввода ключа приватного квиза
+const PrivateQuizKeyModal = ({ visible, onClose }) => {
+    const [loading, setLoading] = useState(false);
+    const [form] = Form.useForm();
+    const navigate = useNavigate();
+    const { connectToQuizByCode } = useQuizes();
+
+    // Автофокус при открытии
+    useEffect(() => {
+        if (visible) {
+            setTimeout(() => {
+                const input = document.querySelector('#quiz-key-input');
+                if (input) input.focus();
+            }, 100);
+        } else {
+            form.resetFields();
+        }
+    }, [visible]);
+
+    const handleConnect = async (values) => {
+        setLoading(true);
+        try {
+            const { key } = values;
+            
+            // Проверяем валидность ключа (5 символов)
+            if (!key || key.length !== 5) {
+                message.error('Ключ должен состоять из 5 символов');
+                return;
+            }
+
+            // Используем метод подключения по коду
+            const quizInfo = await connectToQuizByCode(key.toUpperCase());
+            
+            message.success('Подключение успешно!');
+            onClose();
+            
+            // Перенаправляем на страницу квиза
+            navigate(`/quiz/${quizInfo.quizId}`);
+            
+        } catch (error) {
+            console.error('Ошибка подключения:', error);
+            
+            if (error.response?.status === 404) {
+                message.error('Квиз с таким ключом не найден');
+            } else if (error.response?.status === 403) {
+                message.error('Нет доступа к этому квизу');
+            } else {
+                message.error(error.response?.data || 'Неверный ключ доступа');
+            }
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    const handlePaste = (e) => {
+        e.preventDefault();
+        const text = e.clipboardData.getData('text/plain').toUpperCase();
+        form.setFieldValue('key', text.slice(0, 5));
+    };
+
+    return (
+        <Modal
+            title={
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                    <KeyOutlined style={{ color: '#1890ff' }} />
+                    <span>Подключиться к приватному квизу</span>
+                </div>
+            }
+            open={visible}
+            onCancel={onClose}
+            footer={null}
+            width={500}
+            centered
+            destroyOnClose
+        >
+            <Form
+                form={form}
+                layout="vertical"
+                onFinish={handleConnect}
+                autoComplete="off"
+            >
+                <Form.Item
+                    name="key"
+                    label="Ключ доступа"
+                    rules={[
+                        { required: true, message: 'Введите ключ доступа' },
+                        { len: 5, message: 'Ключ должен содержать 5 символов' },
+                        {
+                            pattern: /^[A-Z0-9]+$/,
+                            message: 'Только заглавные буквы и цифры'
+                        }
+                    ]}
+                >
+                    <Input
+                        id="quiz-key-input"
+                        placeholder="ABCDE"
+                        maxLength={5}
+                        style={{ 
+                            textTransform: 'uppercase',
+                            fontFamily: 'monospace',
+                            fontSize: '18px',
+                            letterSpacing: '4px',
+                            textAlign: 'center'
+                        }}
+                        onPaste={handlePaste}
+                        suffix={
+                            <Button 
+                                type="text" 
+                                size="small"
+                                onClick={() => {
+                                    const text = form.getFieldValue('key') || '';
+                                    navigator.clipboard.writeText(text);
+                                    message.success('Скопировано в буфер обмена');
+                                }}
+                            >
+                                Копировать
+                            </Button>
+                        }
+                    />
+                </Form.Item>
+
+                <Form.Item>
+                    <div style={{ display: 'flex', gap: 8 }}>
+                        <Button onClick={onClose} style={{ flex: 1 }}>
+                            Отмена
+                        </Button>
+                        <Button 
+                            type="primary" 
+                            htmlType="submit"
+                            loading={loading}
+                            style={{ flex: 1 }}
+                        >
+                            Подключиться
+                        </Button>
+                    </div>
+                </Form.Item>
+            </Form>
+        </Modal>
+    );
+};
