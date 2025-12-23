@@ -4,9 +4,6 @@
   "private": true,
   "dependencies": {
     "@testing-library/dom": "^10.4.1",
-    "@testing-library/jest-dom": "^6.9.1",
-    "@testing-library/react": "^16.3.0",
-    "@testing-library/user-event": "^13.5.0",
     "antd": "^6.1.0",
     "axios": "^1.13.2",
     "dayjs": "^1.11.19",
@@ -19,14 +16,11 @@
     "web-vitals": "^2.1.4"
   },
   "scripts": {
-    "start": "react-scripts start",
     "test": "jest",
-    "test:e2e": "jest --config jest.e2e.config.js",
-    "test:e2e:watch": "jest --config jest.e2e.config.js --watch",
-    "test:e2e:ui": "jest --config jest.e2e.config.js --watchAll",
-    "test:e2e:debug": "jest --config jest.e2e.config.js --verbose --no-coverage",
-    "test:e2e:specific": "jest --config jest.e2e.config.js --testPathPattern=",
-    "test:all": "npm run test && npm run test:e2e"
+    "test:watch": "jest --watch",
+    "test:coverage": "jest --coverage",
+    "test:ci": "jest --ci --coverage",
+    "test:update": "jest --updateSnapshot"
   },
   "eslintConfig": {
     "extends": [
@@ -47,9 +41,16 @@
     ]
   },
   "devDependencies": {
+    "@babel/preset-env": "^7.28.5",
+    "@babel/preset-react": "^7.28.5",
+    "@testing-library/jest-dom": "^6.9.1",
+    "@testing-library/react": "^16.3.1",
+    "@testing-library/user-event": "^14.6.1",
     "@types/jest": "^30.0.0",
+    "babel-jest": "^30.2.0",
     "chromedriver": "^143.0.3",
     "jest": "^30.2.0",
+    "jest-environment-jsdom": "^30.2.0",
     "jest-environment-node": "^30.2.0",
     "jest-html-reporter": "^4.3.0",
     "selenium-webdriver": "^4.39.0"
