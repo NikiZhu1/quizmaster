@@ -23,16 +23,28 @@ jest.mock('antd', () => ({
       {children}
     </div>
   ),
-  Dropdown: ({ menu, children, placement }) => (
-    <div data-testid="dropdown" data-placement={placement}>
+  Dropdown: ({ menu, children, placement, arrow }) => (
+    <div 
+      data-testid="dropdown" 
+      data-placement={placement}
+      data-arrow={arrow}
+      onClick={(e) => {
+        // Имитируем клик по меню при клике на дочерний элемент
+        if (menu && menu.items) {
+          const clickEvent = new CustomEvent('dropdown-click', { detail: menu.items });
+          e.target.dispatchEvent(clickEvent);
+        }
+      }}
+    >
       {children}
       {menu && <div data-testid="dropdown-menu">{JSON.stringify(menu)}</div>}
     </div>
   ),
-  Button: ({ type, icon, onClick, children }) => (
+  Button: ({ type, icon, onClick, children, danger }) => (
     <button 
       data-testid="button" 
       data-type={type}
+      data-danger={danger}
       onClick={onClick}
     >
       {icon && <span data-testid="button-icon">{icon}</span>}
@@ -43,6 +55,15 @@ jest.mock('antd', () => ({
     <div data-testid="space" style={style}>
       {children}
     </div>
+  ),
+  Text: ({ children, strong, type }) => (
+    <span 
+      data-testid="text" 
+      data-strong={strong} 
+      data-type={type}
+    >
+      {children}
+    </span>
   ),
 }));
 
@@ -66,8 +87,11 @@ jest.mock('../ProfileModal', () => ({
       {visible && (
         <div>
           <p>Profile Modal - User: {userName} (ID: {userId})</p>
-          <button onClick={onClose}>Close Modal</button>
-          <button onClick={() => onUpdateUser({ userName: 'Updated User' })}>
+          <button data-testid="close-modal" onClick={onClose}>Close Modal</button>
+          <button 
+            data-testid="update-user" 
+            onClick={() => onUpdateUser({ userName: 'Updated User' })}
+          >
             Update User
           </button>
         </div>
@@ -87,6 +111,7 @@ describe('UserInfo Component', () => {
 
   beforeEach(() => {
     jest.clearAllMocks();
+    mockUserPicture.mockReturnValue('https://api.dicebear.com/7.x/avataaars/svg?seed=123');
     useUsers.mockReturnValue({
       GetUserIdFromJWT: mockGetUserIdFromJWT,
       getUserInfo: mockGetUserInfo,
@@ -109,6 +134,39 @@ describe('UserInfo Component', () => {
       const loginButton = screen.getByText(/войти/i);
       fireEvent.click(loginButton);
       expect(mockNavigate).toHaveBeenCalledWith('/login');
+    });
+  });
+
+  test('handles user info loading error', async () => {
+    mockCheckToken.mockResolvedValue('valid-token');
+    mockGetUserIdFromJWT.mockReturnValue(123);
+    mockGetUserInfo.mockRejectedValue(new Error('Failed to load user'));
+    
+    render(
+      <BrowserRouter>
+        <UserInfo />
+      </BrowserRouter>
+    );
+
+    await waitFor(() => {
+      expect(mockLogoutUser).toHaveBeenCalled();
+    });
+  });
+
+  test('handles token decode error', async () => {
+    mockCheckToken.mockResolvedValue('invalid-token');
+    mockGetUserIdFromJWT.mockImplementation(() => {
+      throw new Error('Token decode error');
+    });
+    
+    render(
+      <BrowserRouter>
+        <UserInfo />
+      </BrowserRouter>
+    );
+
+    await waitFor(() => {
+      expect(mockLogoutUser).toHaveBeenCalled();
     });
   });
 });
