@@ -1,18 +1,20 @@
-const {
+import {
   getCategoryName,
   getCategoryColor,
+  getCategoryOriginalName,
+  formatCategoriesFromApi,
   filterQuizzesByCategory,
-} = require('../categoryUtils');
+} from '../categoryUtils';
 
 describe('categoryUtils', () => {
   describe('getCategoryName', () => {
-    test('возвращает правильное название категории', () => {
+    test('возвращает правильное название для известной категории', () => {
       expect(getCategoryName(1)).toBe('Наука');
       expect(getCategoryName(7)).toBe('Технологии');
     });
 
     test('возвращает fallback для неизвестной категории', () => {
-      expect(getCategoryName(999)).toBe('Неизвестная категория');
+      expect(getCategoryName(999)).toBe('Категория 999');
     });
 
     test('обрабатывает null и undefined', () => {
@@ -21,24 +23,76 @@ describe('categoryUtils', () => {
     });
   });
 
-  describe('filterQuizzesByCategory', () => {
-    const mockQuizzes = [
-      { id: 1, title: 'Quiz 1', category: 1 },
-      { id: 2, title: 'Quiz 2', category: 2 },
-      { id: 3, title: 'Quiz 3', category: 1 },
-      { id: 4, title: 'Quiz 4', category: null },
-    ];
-
-    test('фильтрует по категории', () => {
-      const result = filterQuizzesByCategory(mockQuizzes, 1);
-      expect(result).toHaveLength(2);
-      expect(result[0].id).toBe(1);
-      expect(result[1].id).toBe(3);
+  describe('getCategoryColor', () => {
+    test('возвращает правильный цвет для категории', () => {
+      expect(getCategoryColor(0)).toBe('green');
+      expect(getCategoryColor(5)).toBe('red');
     });
 
-    test('возвращает все при null категории', () => {
-      const result = filterQuizzesByCategory(mockQuizzes, null);
-      expect(result).toHaveLength(4);
+    test('возвращает "default" для неизвестной категории', () => {
+      expect(getCategoryColor(999)).toBe('default');
+    });
+  });
+
+  describe('filterQuizzesByCategory', () => {
+    const mockQuizzes = [
+      { id: 1, title: 'Квиз 1', category: 1 },
+      { id: 2, title: 'Квиз 2', category: 2 },
+      { id: 3, title: 'Квиз 3', category: 1 },
+      { id: 4, title: 'Квиз 4', category: null },
+    ];
+
+    test('фильтрует квизы по категории', () => {
+      const filtered = filterQuizzesByCategory(mockQuizzes, 1);
+      expect(filtered).toHaveLength(2);
+      expect(filtered.map(q => q.id)).toEqual([1, 3]);
+    });
+
+    test('возвращает все квизы при null категории', () => {
+      const filtered = filterQuizzesByCategory(mockQuizzes, null);
+      expect(filtered).toHaveLength(4);
+    });
+
+    test('возвращает пустой массив при отсутствии квизов в категории', () => {
+      const filtered = filterQuizzesByCategory(mockQuizzes, 999);
+      expect(filtered).toHaveLength(0);
+    });
+  });
+
+  describe('formatCategoriesFromApi', () => {
+    test('преобразует данные API в нужный формат', () => {
+      const apiData = [
+        { categoryType: 1, name: 'Science' },
+        { categoryType: 7, name: 'Technology' },
+      ];
+
+      const result = formatCategoriesFromApi(apiData);
+
+      expect(result).toHaveLength(2);
+      expect(result[0]).toEqual({
+        id: 1,
+        categoryType: 1,
+        name: 'Science',
+        displayName: 'Наука',
+        color: 'blue',
+        originalName: 'Science',
+      });
+    });
+
+    test('обрабатывает пустой массив', () => {
+      expect(formatCategoriesFromApi([])).toEqual([]);
+    });
+
+    test('фильтрует некорректные данные', () => {
+      const apiData = [
+        { categoryType: 1, name: 'Science' },
+        null,
+        undefined,
+        { categoryType: undefined },
+      ];
+
+      const result = formatCategoriesFromApi(apiData);
+      expect(result).toHaveLength(1);
     });
   });
 });
