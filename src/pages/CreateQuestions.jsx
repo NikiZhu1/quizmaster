@@ -37,7 +37,7 @@ const { Option } = Select;
 export default function CreateQuestions() {
     const {getQuizById, updateQuiz, getQuizQuestions} = useQuizes();
     const {createQuestion, updateQuestion, updateOption, getQuestionById, createOption, deleteOption, deleteQuestion} = useQuestions();
-    const { checkToken } = useUsers();
+    const { checkToken, GetUserIdFromJWT } = useUsers();
     const { checkAccess } = usePrivateQuizAccess();
     const { quizId } = useParams();
     const navigate = useNavigate();
@@ -45,6 +45,7 @@ export default function CreateQuestions() {
     const [quizForm] = Form.useForm();
     const [loading, setLoading] = useState(false);
     const [quiz, setQuiz] = useState(null);
+    const [userId, setUserId] = useState();
 
     const [questions, setQuestions] = useState([]);
     const [loadingQuiz, setLoadingQuiz] = useState(true);
@@ -64,9 +65,20 @@ export default function CreateQuestions() {
     const [categoriesLoading, setCategoriesLoading] = useState(false);
 
     useEffect(() => {
+        checkAuth()
         loadCategories();
         loadQuizData();
     }, [quizId]);
+
+    const checkAuth = async () => {
+        const token = await checkToken();
+        if (!token) {
+            navigate('/'); 
+        } else {
+            const userIdData = GetUserIdFromJWT(token)
+            setUserId(userIdData)
+        }
+    }
 
     const loadCategories = async () => {
         setCategoriesLoading(true);
@@ -102,7 +114,6 @@ export default function CreateQuestions() {
             setLoadingQuiz(true);
             const token = await checkToken();
             const savedAccessKey = await checkAccess(quizId);
-            console.log("КЛЮЧ ЕСТЬ!", savedAccessKey)
             const quizData = await getQuizById(quizId, token, savedAccessKey);
             setQuiz(quizData);
 
@@ -468,7 +479,6 @@ export default function CreateQuestions() {
     if (!loadingEdit && !quiz) {
         return (
             <Layout>
-                <HeaderComponent />
                 <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '60vh' }}>
                     <Spin size="large" tip="Загрузка информации о квизе..." />
                 </div>
@@ -479,7 +489,6 @@ export default function CreateQuestions() {
     if (!quiz && !loadingQuiz) {
         return (
             <Layout>
-                <HeaderComponent />
                 <div style={{ padding: '40px', maxWidth: '800px', margin: '0 auto' }}>
                     <Alert
                         title="Квиз не найден"
@@ -502,10 +511,53 @@ export default function CreateQuestions() {
         );
     }
 
+    if (quiz && userId && quiz.authorId !== userId) {
+    return (
+        <Layout style={{ minHeight: '100vh' }}>
+            <Content style={{ 
+                padding: '24px', 
+                display: 'flex', 
+                justifyContent: 'center', 
+                alignItems: 'center',
+                minHeight: 'calc(100vh - 64px)'
+            }}>
+                <Card style={{ width: '100%', maxWidth: 600 }}>
+                    <div style={{ textAlign: 'center', padding: '40px 20px' }}>
+                        <ExclamationCircleOutlined style={{ fontSize: 64, color: '#ff4d4f', marginBottom: 24 }} />
+                        <Title level={3} style={{ marginBottom: 16 }}>
+                            Доступ запрещен
+                        </Title>
+                        <Paragraph style={{ marginBottom: 24, fontSize: 16 }}>
+                            Вы пытаетесь редактировать квиз другого пользователя.<br />
+                            Редактировать можно только свои собственные квизы.
+                        </Paragraph>
+                        <Space direction="vertical" style={{ width: '100%' }}>
+                            <Button 
+                                type="primary" 
+                                size="large" 
+                                block
+                                onClick={() => navigate('/my-quizzes')}
+                            >
+                                Перейти к моим квизам
+                            </Button>
+                            <Button 
+                                size="large" 
+                                block
+                                onClick={() => navigate('/')}
+                            >
+                                На главную страницу
+                            </Button>
+                        </Space>
+                    </div>
+                </Card>
+            </Content>
+        </Layout>
+    );
+}
+
     if (quiz?.isDeleted) {
         return (
             <Layout>
-                <HeaderComponent />
                 <div style={{ padding: '40px', maxWidth: '800px', margin: '0 auto' }}>
                     <Alert
                         title="Квиз удалён"

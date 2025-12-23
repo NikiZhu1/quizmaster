@@ -230,7 +230,7 @@ export const getUserAttempts = async (token, userId) => {
 };
 
 /**
- * Получает лидерборд для квиза
+ * Получает лидерборд с лучшими попытками для квиза
  * @param {number} quizId - ID квиза
  * @param {string} guestSessionId - ID гостевой сессии (опционально)
  * @returns {Promise<Array>} - Массив лучших попыток
@@ -295,6 +295,83 @@ export const getLeaderboard = async (quizId, token, guestSessionId = null) => {
                     userName: item.userName || item.username || `Участник ${index + 1}`,
                     score: item.score || item.percentage || 0,
                     timeTaken: item.timeTaken || item.duration || "00:00:00",
+                    completedAt: item.completedAt || item.finishedAt || new Date().toISOString()
+                }));
+                
+            } catch (guestError) {
+                console.error('Ошибка при получении лидерборда через guestSessionId:', guestError);
+                return []; // Возвращаем пустой массив при ошибке
+            }
+        }
+        
+        return []; // Возвращаем пустой массив при ошибке
+    }
+};
+
+/**
+ * Получает поыткии квиза
+ * @param {number} quizId - ID квиза
+ * @param {string} guestSessionId - ID гостевой сессии (опционально)
+ * @returns {Promise<Array>} - Массив лучших попыток
+ */
+export const getLeaderboardSimple = async (quizId, token, guestSessionId = null) => {
+    const config = {};
+    const params = {};
+
+    // if (token) {
+    //     config.headers = {
+    //         Authorization: `Bearer ${token}`
+    //     };
+    // }
+
+    let url = `/Attempt/quiz/${quizId}/leaderboard`;
+
+    // Если передали guestSessionId или есть в cookies
+    const sessionId = guestSessionId || Cookies.get('guestSessionId');
+    if (sessionId) {
+        url += `?guestSessionId=${sessionId}`;
+    }
+
+    try {
+        const response = await apiClient.get(url);
+        
+        // Преобразуем данные в удобный формат
+        const leaderboardData = Array.isArray(response.data) ? response.data : [];
+
+        // фильтруем записи убирая строки с нулевым временем
+        const leaderboardDataFilter = leaderboardData.filter(attempt => 
+          attempt.completedAt && 
+          attempt.completedAt !== null &&
+          attempt.timeSpent !== '00:00:00'
+        )
+
+        return leaderboardDataFilter.map((item, index) => ({
+            id: item.id || index,
+            userId: item.userId,
+            userName: item.userName || `Участник ${index + 1}`,
+            score: item.score || 0,
+            timeSpent: item.timeSpent || '00:00:00',
+            completedAt: item.completedAt || 'Не известно'
+        }));
+        
+    } catch (error) {
+        console.error(`Ошибка при получении лидерборда для квиза ${quizId}:`, error);
+        
+        // Если ошибка авторизации и есть guestSessionId, пробуем без авторизации
+        if ((error.response?.status === 401 || error.response?.status === 403) && sessionId) {
+            try {
+                const guestResponse = await apiClient.get(`/Attempt/quiz/${quizId}/leaderboard`, {
+                    params: { guestSessionId: sessionId }
+                });
+                
+                const guestData = Array.isArray(guestResponse.data) ? guestResponse.data : [];
+                return guestData.map((item, index) => ({
+                    id: item.id || index,
+                    position: index + 1,
+                    userId: item.userId,
+                    userName: item.userName || item.username || `Участник ${index + 1}`,
+                    score: item.score || 0,
+                    timeSpent: item.timeTaken || "00:00:00",
                     completedAt: item.completedAt || item.finishedAt || new Date().toISOString()
                 }));
                 

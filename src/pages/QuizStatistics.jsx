@@ -19,8 +19,6 @@ import {
   ReloadOutlined
 } from '@ant-design/icons';
 import dayjs from 'dayjs';
-import Cookies from 'js-cookie';
-import HeaderComponent from '../components/HeaderComponent';
 import { useQuizes } from '../hooks/useQuizes';
 import { useQuestions } from '../hooks/useQuestions';
 import { useQuizAttempt } from '../hooks/useQuizAttempt';
@@ -28,10 +26,10 @@ import { getCategoryName, getCategoryColor } from '../utils/categoryUtils';
 import * as statsApi from '../API methods/statisticsMethods';
 import { useUsers } from '../hooks/useUsers';
 import { usePrivateQuizAccess } from '../hooks/usePrivateQuizAccess';
+import { useIsPortrait } from '../hooks/usePortain';
 
 const { Content } = Layout;
-const { Title, Text, Paragraph } = Typography;
-const { Option } = Select;
+const { Title, Text } = Typography;
 const { RangePicker } = DatePicker;
 const { TabPane } = Tabs;
 
@@ -138,8 +136,10 @@ export default function QuizStatistics() {
   const navigate = useNavigate();
   const { getQuizById, checkQuizOwnership, getQuizQuestions } = useQuizes();
   const { getQuestionOptions, getQuestionById } = useQuestions();
+  const { getLeaderboardSimple } = useQuizAttempt();
   const { } = useQuizAttempt();
   const { checkToken } = useUsers();
+  const isPortrait = useIsPortrait();
   const { getSavedAccessKey } = usePrivateQuizAccess();
   
   const [quiz, setQuiz] = useState(null);
@@ -222,7 +222,7 @@ export default function QuizStatistics() {
   const loadStatistics = async () => {
     try {
       console.log('Загрузка статистики для квиза', quizId);
-      const attemptsData = await statsApi.getQuizStatistics(quizId);
+      const attemptsData = await getLeaderboardSimple(quizId);
       console.log('Получено попыток:', attemptsData.length);
       if (attemptsData.length > 0) {
         console.log('Пример попытки:', attemptsData[0]);
@@ -301,9 +301,9 @@ export default function QuizStatistics() {
       console.log('Сбор ответов для попыток...');
       for (const attempt of statistics) {
         try {
-          console.log(`Загружаем ответы для попытки ${attempt.id}...`);
-          const answers = await statsApi.getAttemptAnswersForAnalysis(attempt.id);
-          console.log(`Получено ${answers.length} ответов для попытки ${attempt.id}`);
+          console.log(`Загружаем ответы для попытки ${attempt.attemptId}...`);
+          const answers = await statsApi.getAttemptAnswersForAnalysis(attempt.attemptId);
+          console.log(`Получено ${answers.length} ответов для попытки ${attempt.attemptId}`);
           
           if (answers.length > 0) {
             console.log('Пример ответа:', answers[0]);
@@ -311,10 +311,10 @@ export default function QuizStatistics() {
           
           allAnswers.push(...answers.map(answer => ({
             ...answer,
-            attemptId: attempt.id
+            attemptId: attempt.attemptId
           })));
         } catch (err) {
-          console.error(`Ошибка загрузки ответов для попытки ${attempt.id}:`, err);
+          console.error(`Ошибка загрузки ответов для попытки ${attempt.attemptId}:`, err);
         }
       }
       
@@ -612,6 +612,36 @@ export default function QuizStatistics() {
     return dayjs(dateString).format('DD.MM.YYYY HH:mm');
   };
 
+  const formatTime = (timeString) => {
+    if (!timeString || timeString === "00:00:00") {
+        return "—";
+    }
+    
+    try {
+        if (typeof timeString === 'string' && timeString.includes(':')) {
+            const parts = timeString.split(':');
+            if (parts.length === 3) {
+                const hours = parseInt(parts[0]) || 0;
+                const minutes = parseInt(parts[1]) || 0;
+                const seconds = parseInt(parts[2]) || 0;
+                
+                if (hours > 0) {
+                    return `${hours}ч ${minutes}м ${seconds}с`;
+                } else if (minutes > 0) {
+                    return `${minutes}м ${seconds}с`;
+                } else {
+                    return `${seconds} сек`;
+                }
+            }
+        }
+        
+        return timeString.toString();
+    } catch (error) {
+        console.error('Ошибка форматирования времени:', error);
+        return "Без ограничений по времени";
+    }
+};
+
   const getScorePercentage = (score) => {
     const totalQuestions = quiz?.questionsCount || 1;
     return Math.round((score / totalQuestions) * 100);
@@ -688,7 +718,7 @@ export default function QuizStatistics() {
           {record.userId ? (
             <>
               <UserOutlined style={{ color: '#1890ff' }} />
-              <Text>Пользователь #{record.username}</Text>
+              <Text>{record.userName}</Text>
             </>
           ) : (
             <>
@@ -704,7 +734,6 @@ export default function QuizStatistics() {
       key: 'score',
       render: (_, record) => {
         const percentage = getScorePercentage(record.score);
-        const isPerfect = record.score >= (quiz?.questionsCount || 0);
         return (
           <Space direction="vertical" size={0}>
             <Space>
@@ -727,11 +756,9 @@ export default function QuizStatistics() {
       title: 'Время',
       dataIndex: 'timeSpent',
       key: 'timeSpent',
+      width: 100,
       render: (time) => (
-        <Space>
-          <ClockCircleOutlined />
-          <Text>{time || '00:00:00'}</Text>
-        </Space>
+        <Text>{formatTime(time)}</Text>
       ),
     },
     {
@@ -746,7 +773,6 @@ export default function QuizStatistics() {
   if (loading) {
     return (
       <Layout>
-        <HeaderComponent />
         <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '60vh' }}>
           <Spin size="large" tip="Загрузка статистики..." />
         </div>
@@ -757,7 +783,6 @@ export default function QuizStatistics() {
   if (error && !hasAccess) {
     return (
       <Layout>
-        <HeaderComponent />
         <div style={{ padding: '40px', maxWidth: '800px', margin: '0 auto' }}>
           <Alert
             title="Доступ запрещен"
@@ -778,7 +803,6 @@ export default function QuizStatistics() {
   if (error) {
     return (
       <Layout>
-        <HeaderComponent />
         <div style={{ padding: '40px', maxWidth: '800px', margin: '0 auto' }}>
           <Alert
             title="Ошибка"
@@ -804,7 +828,6 @@ export default function QuizStatistics() {
   if (!quiz) {
     return (
       <Layout>
-        <HeaderComponent />
         <div style={{ padding: '40px', maxWidth: '800px', margin: '0 auto' }}>
           <Alert
             title="Квиз не найден"
@@ -824,7 +847,7 @@ export default function QuizStatistics() {
 
   return (
     <Layout style={{ minHeight: '100vh' }}>
-      <Content style={{ padding: '24px', maxWidth: '1400px', margin: '0 auto', width: '100%' }}>
+      <Content style={{ padding: isPortrait ? '16px' : '24px', maxWidth: '1400px', margin: '0 auto', width: '100%' }}>
         {/* Заголовок и навигация */}
         <Space direction="vertical" size="large" style={{ width: '100%' }}>
           <Row justify="space-between" align="middle">
@@ -974,6 +997,9 @@ export default function QuizStatistics() {
                       <Tag color="blue">{filteredStats.length}</Tag>
                     </Space>
                   }
+                  styles={{
+                    body: { padding: isPortrait && '16px'}
+                  }}
                 >
                   {filteredStats.length === 0 ? (
                     <Empty

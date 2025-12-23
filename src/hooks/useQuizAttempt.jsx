@@ -317,6 +317,24 @@ export const useQuizAttempt = () => {
     }
   }
 
+  /** Получение лидерборда простой */
+  const getLeaderboardSimple = async (quizId, token, guestSessionId = null) => {
+    setLoading(true);
+    setError(null);
+
+    try {
+      const leaderboardData = api.getLeaderboardSimple(quizId, token, guestSessionId)
+      return leaderboardData;
+    } 
+    catch (err) {
+      setError(err.message);
+      throw err;
+    } 
+    finally {
+      setLoading(false);
+    }
+  }
+
   // Таймер обратного отсчета
   const initializeTimer = (seconds) => {
     if (timerRef.current) {
@@ -534,6 +552,7 @@ useEffect(() => {
     getAttemptByIdFull,
     checkAndRestoreAttempt,
     getLeaderboard,
+    getLeaderboardSimple,
     getAttemptAnswers,
     saveAnswer,
     goToNextQuestion,

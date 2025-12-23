@@ -809,7 +809,7 @@ const QuizDetail = () => {
                         </Button>
                     }
                 >
-                    {!sessionId ? (
+                    {(!sessionId && !isAuthenticated) ? (
                         <Alert
                             title="Таблица лидеров недоступна"
                             description="Чтобы увидеть таблицу лидеров, необходимо сначала пройти этот квиз."

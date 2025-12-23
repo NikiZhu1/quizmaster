@@ -101,16 +101,16 @@ const MenuMobile = () => {
   };
 
   const profileMenuItems = [
-    {
-      key: 'join',
-      icon: <KeyOutlined style={{fontSize: 14}}/>,
-      label: <span style={{ fontSize: 16}}>Ввести ключ приватного квиза</span>,
-      onClick: () => navigate('/settings')
-    },
+    // {
+    //   key: 'join',
+    //   icon: <KeyOutlined style={{fontSize: 14}}/>,
+    //   label: <span style={{ fontSize: 16}}>Ввести ключ приватного квиза</span>,
+    //   onClick: () => navigate('/settings')
+    // },
     {
       key: 'profile',
       icon: <UserOutlined style={{fontSize: 14}}/>,
-      label: <span style={{ fontSize: 16, padding: '12px 0px' }}>Настройки профиля</span>,
+      label: <span style={{ fontSize: 16 }}>Настройки профиля</span>,
       onClick: () => setProfileModalVisible(true)
     },
     {
@@ -120,7 +120,7 @@ const MenuMobile = () => {
       key: 'logout',
       icon: <LogoutOutlined style={{fontSize: 14}}/>,
       danger: true,
-      label: <span style={{ fontSize: 16, padding: '12px 0px' }}>Выйти</span>,
+      label: <span style={{ fontSize: 16 }}>Выйти</span>,
       onClick: () => handleLogout(),
     },
   ];

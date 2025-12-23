@@ -403,7 +403,6 @@ export default function QuizResult() {
     if (error || !result) {
         return (
             <Layout>
-                <HeaderComponent />
                 <div style={{ padding: 24, maxWidth: 800, margin: '0 auto' }}>
                     <Alert
                         title="Ошибка"

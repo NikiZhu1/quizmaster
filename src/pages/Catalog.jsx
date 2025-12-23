@@ -215,7 +215,7 @@ export default function Catalog() {
             {/* Новая плашка для приватных квизов */}
             <Card 
                 style={{ 
-                    margin: '0px 40px 16px 40px',
+                    margin: '0px 16px 16px',
                     borderRadius: '8px',
                     backgroundColor: '#fff7e6',
                     border: '1px solid #ffd591'
@@ -225,7 +225,6 @@ export default function Catalog() {
                 <Flex justify="space-between" align="center" wrap="wrap" gap="middle">
                     <Space direction="vertical" size="small">
                         <Typography.Text style={{ fontSize: '15px', fontWeight: 500 }}>
-                            <KeyOutlined style={{ marginRight: 8, color: '#fa8c16' }} />
                             Доступ к приватным квизам
                         </Typography.Text>
                         <Typography.Text type="secondary" style={{ fontSize: '13px' }}>
@@ -309,11 +308,13 @@ export default function Catalog() {
                     </Empty>
                 ) : (
                     <Row gutter={[24, 24]}>
-                        {filteredQuizzes.map(quiz => (
-                            <Col key={quiz.id} xs={24} sm={12} md={8} lg={6}>
-                                <QuizCard quiz={quiz} />
-                            </Col>
-                        ))}
+                        {filteredQuizzes
+                            .filter(quiz => quiz.questionsCount > 0)  // Фильтрация
+                            .map(quiz => (
+                                <Col key={quiz.id} xs={24} sm={12} md={8} lg={6}>
+                                    <QuizCard quiz={quiz} />
+                                </Col>
+                            ))}
                     </Row>
                 )}
             </div>

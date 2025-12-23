@@ -4,11 +4,13 @@ import { ClockCircleOutlined, UserOutlined, QuestionCircleOutlined } from '@ant-
 import { useNavigate } from 'react-router-dom';
 import { getUserInfo } from '../API methods/usersMethods';
 import { getCategoryName, getCategoryColor } from '../utils/categoryUtils';
+import { useQuestions } from '../hooks/useQuestions';
 
 const { Text, Paragraph, Title } = Typography;
 
 function QuizCard({ quiz }) {
     const navigate = useNavigate();
+    const { pluralize } = useQuestions();
     const [authorName, setAuthorName] = useState('');
     const [loadingAuthor, setLoadingAuthor] = useState(false);
 
@@ -167,7 +169,7 @@ function QuizCard({ quiz }) {
                         flex: 1
                     }}
                 >
-                    {quiz.description || 'Описание отсутствует'}
+                    {quiz.description || ''}
                 </Paragraph>
                 
                 <div style={{ 
@@ -182,7 +184,7 @@ function QuizCard({ quiz }) {
                     <div style={{ display: 'flex', alignItems: 'center', gap: 4, minWidth: '100px' }}>
                         <QuestionCircleOutlined style={{ fontSize: '12px', color: '#8c8c8c' }} />
                         <Text type="secondary" style={{ fontSize: '12px' }}>
-                            {quiz.questionsCount || '?'} вопросов
+                            {quiz.questionsCount || '?'} вопрос{pluralize(quiz.questionsCount)}
                         </Text>
                     </div>
                     
