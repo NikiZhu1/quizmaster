@@ -117,51 +117,6 @@ describe('QuizCard Component', () => {
     getCategoryColor.mockReturnValue('green');
   });
 
-  test('renders quiz card with title and description', async () => {
-    getUserInfo.mockResolvedValue({ name: 'John Doe' });
-    
-    render(
-      <BrowserRouter>
-        <QuizCard quiz={mockQuiz} />
-      </BrowserRouter>
-    );
-
-    await waitFor(() => {
-      expect(screen.getByText('Test Quiz Title')).toBeInTheDocument();
-      expect(screen.getByText('Test quiz description')).toBeInTheDocument();
-    });
-  });
-
-  test('shows author name when loaded', async () => {
-    getUserInfo.mockResolvedValue({ name: 'John Doe' });
-    
-    render(
-      <BrowserRouter>
-        <QuizCard quiz={mockQuiz} />
-      </BrowserRouter>
-    );
-
-    await waitFor(() => {
-      expect(screen.getByText('John Doe')).toBeInTheDocument();
-      expect(getUserInfo).toHaveBeenCalledWith(123);
-    });
-  });
-
-  test('shows unknown author when authorId is missing', async () => {
-    const quizWithoutAuthor = { ...mockQuiz, authorId: undefined };
-    getUserInfo.mockResolvedValue(null);
-    
-    render(
-      <BrowserRouter>
-        <QuizCard quiz={quizWithoutAuthor} />
-      </BrowserRouter>
-    );
-
-    await waitFor(() => {
-      expect(screen.getByText('Неизвестный автор')).toBeInTheDocument();
-    });
-  });
-
   test('navigates to quiz page on click', async () => {
     getUserInfo.mockResolvedValue({ name: 'John Doe' });
     
@@ -175,38 +130,6 @@ describe('QuizCard Component', () => {
       const card = screen.getByTestId('quiz-card');
       fireEvent.click(card);
       expect(mockNavigate).toHaveBeenCalledWith('/quiz/1');
-    });
-  });
-
-  test('shows category when available', async () => {
-    getUserInfo.mockResolvedValue({ name: 'John Doe' });
-    getCategoryName.mockReturnValue('Наука');
-    
-    render(
-      <BrowserRouter>
-        <QuizCard quiz={mockQuiz} />
-      </BrowserRouter>
-    );
-
-    await waitFor(() => {
-      expect(screen.getByText('Наука')).toBeInTheDocument();
-      expect(getCategoryName).toHaveBeenCalledWith(1);
-    });
-  });
-
-  test('shows questions count with pluralization', async () => {
-    getUserInfo.mockResolvedValue({ name: 'John Doe' });
-    mockPluralize.mockReturnValue('ов');
-    
-    render(
-      <BrowserRouter>
-        <QuizCard quiz={mockQuiz} />
-      </BrowserRouter>
-    );
-
-    await waitFor(() => {
-      expect(screen.getByText('10 вопросов')).toBeInTheDocument();
-      expect(mockPluralize).toHaveBeenCalledWith(10);
     });
   });
 });

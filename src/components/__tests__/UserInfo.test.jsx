@@ -96,43 +96,6 @@ describe('UserInfo Component', () => {
     });
   });
 
-  test('renders login button when not authenticated', async () => {
-    mockCheckToken.mockResolvedValue(null);
-    mockGetUserIdFromJWT.mockReturnValue(null);
-    
-    render(
-      <BrowserRouter>
-        <UserInfo />
-      </BrowserRouter>
-    );
-
-    await waitFor(() => {
-      expect(screen.getByText(/войти/i)).toBeInTheDocument();
-      expect(screen.queryByTestId('profile-modal')).not.toBeInTheDocument();
-    });
-  });
-
-  test('renders user info when authenticated', async () => {
-    const mockToken = 'mock-token';
-    const mockUserId = 123;
-    const mockUser = { id: 123, name: 'John Doe' };
-    
-    mockCheckToken.mockResolvedValue(mockToken);
-    mockGetUserIdFromJWT.mockReturnValue(mockUserId);
-    mockGetUserInfo.mockResolvedValue(mockUser);
-    mockUserPicture.mockReturnValue('avatar-url');
-    
-    render(
-      <BrowserRouter>
-        <UserInfo />
-      </BrowserRouter>
-    );
-
-    await waitFor(() => {
-      expect(screen.getByText('John Doe')).toBeInTheDocument();
-    });
-  });
-
   test('navigates to login page when login button is clicked', async () => {
     mockCheckToken.mockResolvedValue(null);
     

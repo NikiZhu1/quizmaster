@@ -1,9 +1,3 @@
-/**
- * ЭТОТ ТЕСТ ТРЕБУЕТ РАБОТОСПОСОБНОГО API СЕРВЕРА
- * Эти тесты можно запускать отдельно, когда нужно протестировать
- * реальное взаимодействие с API
- */
-
 import { getAllCategories, getCategoryById, getQuizzesByCategory } from '../categoryMethods';
 import apiClient from '../.APIclient';
 

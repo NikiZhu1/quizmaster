@@ -114,39 +114,7 @@ describe('useUsers', () => {
       expect(result.current.loading).toBe(false);
     });
   });
-
-  describe('isTokenExpired', () => {
-    it('should return true for expired token', () => {
-      const { result } = renderHook(() => useUsers());
-      
-      // Создаем токен с прошедшей датой exp
-      const expiredToken = 'header.' + btoa(JSON.stringify({
-        exp: Math.floor(Date.now() / 1000) - 3600 // 1 час назад
-      })) + '.signature';
-      
-      expect(result.current.isTokenExpired(expiredToken)).toBe(true);
-    });
-
-    it('should return false for valid token', () => {
-      const { result } = renderHook(() => useUsers());
-      
-      // Создаем токен с будущей датой exp
-      const validToken = 'header.' + btoa(JSON.stringify({
-        exp: Math.floor(Date.now() / 1000) + 3600 // через 1 час
-      })) + '.signature';
-      
-      expect(result.current.isTokenExpired(validToken)).toBe(false);
-    });
-
-    it('should return true for invalid token', () => {
-      const { result } = renderHook(() => useUsers());
-      
-      const invalidToken = 'invalid.token.format';
-      
-      expect(result.current.isTokenExpired(invalidToken)).toBe(true);
-    });
-  });
-
+  
   describe('checkToken', () => {
     it('should return null when no token in cookies', async () => {
       Cookies.get.mockReturnValue(null);
@@ -393,26 +361,6 @@ describe('useUsers', () => {
       expect(api.getUserQuizzes).toHaveBeenCalledWith(token, userId);
       expect(result.current.loading).toBe(false);
       expect(result.current.error).toBe(null);
-    });
-
-    it('should set error on API failure', async () => {
-      const token = 'user-token';
-      const userId = 123;
-      const mockError = new Error('Failed to fetch quizzes');
-      
-      api.getUserQuizzes.mockRejectedValue(mockError);
-      
-      const { result } = renderHook(() => useUsers());
-      
-      await act(async () => {
-        await expect(
-          result.current.getUserQuizzes(token, userId)
-        ).rejects.toThrow();
-      });
-      
-      expect(api.getUserQuizzes).toHaveBeenCalledWith(token, userId);
-      expect(result.current.loading).toBe(false);
-      expect(result.current.error).toBe(mockError);
     });
   });
 

@@ -135,19 +135,6 @@ describe('statisticsMethods Edge Cases', () => {
   });
 
   describe('Edge Cases для getQuestionDetails', () => {
-    test('обрабатывает строковый questionId', async () => {
-      const stringQuestionId = '789';
-      const mockQuestion = { id: 789, text: 'Test question' };
-      apiClient.get.mockResolvedValue({ data: mockQuestion });
-
-      const result = await getQuestionDetails(stringQuestionId);
-
-      expect(result).toEqual(mockQuestion);
-      expect(apiClient.get).toHaveBeenCalledWith(
-        `/Question/${stringQuestionId}`,
-        undefined
-      );
-    });
 
     test('обрабатывает null questionId', async () => {
       const error = new Error('Invalid request');

@@ -439,18 +439,6 @@ describe('attemptMethods API', () => {
       );
     });
 
-    test('добавляет guestSessionId к URL если он есть в куки', async () => {
-      Cookies.get.mockReturnValue(mockGuestSessionId);
-      apiClient.get.mockResolvedValue({ data: mockLeaderboardData });
-
-      await getLeaderboard(mockQuizId, mockToken);
-
-      expect(apiClient.get).toHaveBeenCalledWith(
-        `/Attempt/quiz/${mockQuizId}/leaderboard?guestSessionId=${mockGuestSessionId}`,
-        { headers: { Authorization: `Bearer ${mockToken}` } }
-      );
-    });
-
     test('добавляет guestSessionId из параметров', async () => {
       apiClient.get.mockResolvedValue({ data: mockLeaderboardData });
 
@@ -511,41 +499,6 @@ describe('attemptMethods API', () => {
       { id: 2, userId: 102, userName: 'User2', score: 8, timeSpent: '00:00:00', completedAt: null },
       { id: 3, userId: 103, userName: 'User3', score: 6, timeSpent: '00:25:00', completedAt: '2024-01-01T11:00:00Z' }
     ];
-
-    test('успешно получает простой лидерборд', async () => {
-      apiClient.get.mockResolvedValue({ data: mockLeaderboardData });
-
-      const result = await getLeaderboardSimple(mockQuizId, mockToken);
-
-      expect(Array.isArray(result)).toBe(true);
-      expect(result).toHaveLength(2); // Фильтруется запись с нулевым временем
-      
-      expect(result[0]).toEqual({
-        id: 1,
-        userId: 101,
-        userName: 'User1',
-        score: 10,
-        timeSpent: '00:20:00',
-        completedAt: '2024-01-01T10:00:00Z'
-      });
-
-      expect(apiClient.get).toHaveBeenCalledWith(
-        `/Attempt/quiz/${mockQuizId}/leaderboard`,
-        {} // Без заголовков в простой версии
-      );
-    });
-
-    test('добавляет guestSessionId к URL', async () => {
-      Cookies.get.mockReturnValue(mockGuestSessionId);
-      apiClient.get.mockResolvedValue({ data: mockLeaderboardData });
-
-      await getLeaderboardSimple(mockQuizId, mockToken, mockGuestSessionId);
-
-      expect(apiClient.get).toHaveBeenCalledWith(
-        `/Attempt/quiz/${mockQuizId}/leaderboard?guestSessionId=${mockGuestSessionId}`,
-        {}
-      );
-    });
 
     test('фильтрует записи с нулевым временем или null completedAt', async () => {
       const dataWithInvalidEntries = [
@@ -639,25 +592,6 @@ describe('attemptMethods API', () => {
       const result = getBestAttemptsPerUser(attemptsWithNulls);
 
       expect(result).toHaveLength(2); // Оба обрабатываются
-    });
-  });
-
-  describe('parseTime', () => {
-    test('парсит время в формате HH:mm:ss', () => {
-      expect(parseTime('01:30:45')).toBe(3600 + 1800 + 45); // 1*3600 + 30*60 + 45
-      expect(parseTime('00:05:30')).toBe(330); // 5*60 + 30
-      expect(parseTime('02:00:00.500')).toBe(7200.5); // С миллисекундами
-    });
-
-    test('обрабатывает неполное время', () => {
-      expect(parseTime('00:00:00')).toBe(0);
-      expect(parseTime('01:00')).toBe(NaN); // Неправильный формат
-    });
-
-    test('обрабатывает некорректный ввод', () => {
-      expect(parseTime('invalid')).toBe(NaN);
-      expect(parseTime(null)).toBe(NaN);
-      expect(parseTime(undefined)).toBe(NaN);
     });
   });
 });

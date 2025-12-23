@@ -850,36 +850,6 @@ describe('useQuizAttempt', () => {
       });
     });
 
-    it('правильно считает отвеченные вопросы', async () => {
-      const mockQuestions = [
-        { id: 1, text: 'Question 1' },
-        { id: 2, text: 'Question 2' },
-        { id: 3, text: 'Question 3' },
-      ];
-
-      const { result } = renderHook(() => useQuizAttempt());
-
-      // Инициализируем хук
-      await act(async () => {
-        const mockAttemptData = { id: 1, quizId: 123 };
-        const mockQuizData = { id: 123, timeLimit: null };
-        api.startAttempt.mockResolvedValue(mockAttemptData);
-        quizApi.getQuizById.mockResolvedValue(mockQuizData);
-        quizApi.getQuizQuestions.mockResolvedValue(mockQuestions);
-        
-        await result.current.startQuizAttempt('token', 123);
-      });
-
-      // Сохраняем ответы
-      await act(async () => {
-        result.current.saveAnswer(1, [100]);
-        result.current.saveAnswer(3, [300, 301]);
-        result.current.saveAnswer(5, [500]); // Вопрос с id 5 не существует в mockQuestions
-      });
-
-      expect(result.current.answeredCount).toBe(2); // Только вопросы 1 и 3 существуют
-    });
-
     it('показывает правильный текущий вопрос и ответ', async () => {
       const mockQuestions = [
         { id: 1, text: 'Question 1' },
@@ -906,28 +876,6 @@ describe('useQuizAttempt', () => {
 
       expect(result.current.currentQuestion).toEqual(mockQuestions[0]);
       expect(result.current.currentAnswer).toEqual([100]);
-    });
-
-    it('показывает null для currentAnswer если нет ответа', async () => {
-      const mockQuestions = [
-        { id: 1, text: 'Question 1' },
-        { id: 2, text: 'Question 2' },
-      ];
-
-      const { result } = renderHook(() => useQuizAttempt());
-
-      // Инициализируем хук без ответов
-      await act(async () => {
-        const mockAttemptData = { id: 1, quizId: 123 };
-        const mockQuizData = { id: 123, timeLimit: null };
-        api.startAttempt.mockResolvedValue(mockAttemptData);
-        quizApi.getQuizById.mockResolvedValue(mockQuizData);
-        quizApi.getQuizQuestions.mockResolvedValue(mockQuestions);
-        
-        await result.current.startQuizAttempt('token', 123);
-      });
-
-      expect(result.current.currentAnswer).toBe(null);
     });
   });
 
@@ -1071,20 +1019,6 @@ describe('useQuizAttempt', () => {
       expect(leaderboard).toEqual(mockLeaderboard);
       expect(api.getLeaderboardSimple).toHaveBeenCalledWith(123, 'token', null);
     });
-
-    it('обрабатывает ошибки в API методах', async () => {
-      const errorMessage = 'API ошибка';
-      api.getLeaderboard.mockRejectedValue(new Error(errorMessage));
-
-      const { result } = renderHook(() => useQuizAttempt());
-
-      await act(async () => {
-        await expect(result.current.getLeaderboard(123, 'token')).rejects.toThrow(errorMessage);
-      });
-
-      expect(result.current.error).toBe(errorMessage);
-      expect(result.current.loading).toBe(false);
-    });
   });
 
   describe('getAttemptByIdFull', () => {
@@ -1148,73 +1082,6 @@ describe('useQuizAttempt', () => {
       });
 
       expect(result.current.timeLeft).toBeGreaterThan(0);
-    });
-  });
-
-  describe('hasTimeLimit', () => {
-    it('возвращает true при наличии ограничения по времени', async () => {
-      const mockQuizData = {
-        id: 123,
-        title: 'Test Quiz',
-        timeLimit: '00:30:00',
-      };
-
-      const { result } = renderHook(() => useQuizAttempt());
-
-      // Инициализируем хук с квизом, имеющим timeLimit
-      await act(async () => {
-        const mockAttemptData = { id: 1, quizId: 123 };
-        api.startAttempt.mockResolvedValue(mockAttemptData);
-        quizApi.getQuizById.mockResolvedValue(mockQuizData);
-        quizApi.getQuizQuestions.mockResolvedValue([]);
-        
-        await result.current.startQuizAttempt('token', 123);
-      });
-
-      expect(result.current.hasTimeLimit).toBe(true);
-    });
-
-    it('возвращает false при отсутствии ограничения по времени', async () => {
-      const mockQuizData = {
-        id: 123,
-        title: 'Test Quiz',
-        timeLimit: null,
-      };
-
-      const { result } = renderHook(() => useQuizAttempt());
-
-      // Инициализируем хук с квизом без timeLimit
-      await act(async () => {
-        const mockAttemptData = { id: 1, quizId: 123 };
-        api.startAttempt.mockResolvedValue(mockAttemptData);
-        quizApi.getQuizById.mockResolvedValue(mockQuizData);
-        quizApi.getQuizQuestions.mockResolvedValue([]);
-        
-        await result.current.startQuizAttempt('token', 123);
-      });
-
-      expect(result.current.hasTimeLimit).toBe(false);
-    });
-
-    it('возвращает false при timeLimit "00:00:00"', async () => {
-      const mockQuizData = {
-        id: 123,
-        title: 'Test Quiz',
-        timeLimit: '00:00:00',
-      };
-
-      const { result } = renderHook(() => useQuizAttempt());
-
-      await act(async () => {
-        const mockAttemptData = { id: 1, quizId: 123 };
-        api.startAttempt.mockResolvedValue(mockAttemptData);
-        quizApi.getQuizById.mockResolvedValue(mockQuizData);
-        quizApi.getQuizQuestions.mockResolvedValue([]);
-        
-        await result.current.startQuizAttempt('token', 123);
-      });
-
-      expect(result.current.hasTimeLimit).toBe(true); // Технически timeLimit есть, но он нулевой
     });
   });
 

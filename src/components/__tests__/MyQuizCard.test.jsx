@@ -2,7 +2,7 @@ import React from 'react';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import '@testing-library/jest-dom';
 import { BrowserRouter } from 'react-router-dom';
-import MyQuizCard from '../../components/MyQuizCard';
+import MyQuizCard from '../MyQuizCard';
 
 // Простые моки для зависимостей
 jest.mock('../../hooks/useQuizes', () => ({

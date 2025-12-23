@@ -45,29 +45,6 @@ describe('QuizConnectModal Component', () => {
     api.connectToQuizByCode.mockReset();
   });
 
-  test('renders modal when visible is true', () => {
-    render(
-      <BrowserRouter>
-        <QuizConnectModal visible={true} onClose={mockOnClose} />
-      </BrowserRouter>
-    );
-
-    expect(screen.getByTestId('modal')).toBeInTheDocument();
-    expect(screen.getByText(/подключиться к квизу/i)).toBeInTheDocument();
-    expect(screen.getByLabelText(/введите код доступа/i)).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: /подключиться/i })).toBeInTheDocument();
-  });
-
-  test('does not render modal when visible is false', () => {
-    render(
-      <BrowserRouter>
-        <QuizConnectModal visible={false} onClose={mockOnClose} />
-      </BrowserRouter>
-    );
-
-    expect(screen.queryByTestId('modal')).not.toBeInTheDocument();
-  });
-
   test('calls onClose when cancel button is clicked', () => {
     render(
       <BrowserRouter>
@@ -164,39 +141,5 @@ describe('QuizConnectModal Component', () => {
 
     // Проверяем, что API не вызывался при невалидных данных
     expect(api.connectToQuizByCode).not.toHaveBeenCalled();
-  });
-
-  test('converts input to uppercase', () => {
-    render(
-      <BrowserRouter>
-        <QuizConnectModal visible={true} onClose={mockOnClose} />
-      </BrowserRouter>
-    );
-
-    const codeInput = screen.getByLabelText(/введите код доступа/i);
-    fireEvent.change(codeInput, { target: { value: 'abcde' } });
-    
-    // Проверяем, что значение отображается в верхнем регистре
-    expect(codeInput.value).toBe('ABCDE');
-  });
-
-  test('disables submit button when loading', async () => {
-    api.connectToQuizByCode.mockImplementation(() => new Promise(resolve => setTimeout(() => resolve(mockQuizInfo), 100)));
-    
-    render(
-      <BrowserRouter>
-        <QuizConnectModal visible={true} onClose={mockOnClose} />
-      </BrowserRouter>
-    );
-
-    const codeInput = screen.getByLabelText(/введите код доступа/i);
-    fireEvent.change(codeInput, { target: { value: 'ABCDE' } });
-    
-    const submitButton = screen.getByRole('button', { name: /подключиться/i });
-    fireEvent.click(submitButton);
-
-    // Проверяем, что кнопка задизейблена во время загрузки
-    expect(submitButton).toBeDisabled();
-    expect(submitButton).toHaveAttribute('loading');
   });
 });

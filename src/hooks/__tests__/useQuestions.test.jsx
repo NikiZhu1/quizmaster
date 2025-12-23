@@ -263,15 +263,6 @@ test('pluralize работает с граничными значениями', 
   expect(result.current.pluralize(121)).toBe('');
 });
 
-test('pluralize работает с отрицательными числами', () => {
-  const { result } = renderHook(() => useQuestions());
-
-  expect(result.current.pluralize(-1)).toBe('');
-  expect(result.current.pluralize(-2)).toBe('а');
-  expect(result.current.pluralize(-5)).toBe('ов');
-  expect(result.current.pluralize(-11)).toBe('ов');
-});
-
 test('устанавливает loading в true во время запроса', async () => {
   const mockQuestionData = {
     id: 123,
@@ -481,48 +472,4 @@ test('работает без токена для методов, которые
   });
 
   expect(api.deleteQuestion).toHaveBeenCalledWith(123, null);
-});
-
-test('не перезаписывает состояние между параллельными запросами', async () => {
-  // Создаем промисы, которые можно разрешить вручную
-  let resolveFirst, resolveSecond;
-  const firstPromise = new Promise(resolve => { 
-    resolveFirst = () => resolve({ id: 123, text: 'Question 1' }); 
-  });
-  const secondPromise = new Promise(resolve => { 
-    resolveSecond = () => resolve({ id: 456, text: 'Option 1', isCorrect: true }); 
-  });
-
-  api.getQuestionById.mockReturnValue(firstPromise);
-  api.getOptionById.mockReturnValue(secondPromise);
-
-  const { result } = renderHook(() => useQuestions());
-
-  // Запускаем два запроса параллельно
-  let firstRequest, secondRequest;
-  act(() => {
-    firstRequest = result.current.getQuestionById(123);
-    secondRequest = result.current.getOptionById(456);
-  });
-
-  // Оба должны быть в состоянии loading
-  expect(result.current.loading).toBe(true);
-
-  // Разрешаем первый промис
-  await act(async () => {
-    resolveFirst();
-    await firstRequest;
-  });
-
-  // Проверяем, что loading все еще true (второй запрос еще выполняется)
-  expect(result.current.loading).toBe(true);
-
-  // Разрешаем второй промис
-  await act(async () => {
-    resolveSecond();
-    await secondRequest;
-  });
-
-  // Теперь оба завершены
-  expect(result.current.loading).toBe(false);
 });

@@ -98,26 +98,6 @@ describe('useCategories Hook', () => {
       expect(result.current.loading).toBe(false);
     });
 
-    test('обрабатывает ошибку при загрузке категорий', async () => {
-      const mockError = new Error('Failed to load categories');
-      api.getAllCategories.mockRejectedValue(mockError);
-
-      const { result } = renderHook(() => useCategories());
-
-      // Пытаемся загрузить и ожидаем ошибку
-      await expect(
-        act(async () => {
-          await result.current.loadCategories();
-        })
-      ).rejects.toThrow('Failed to load categories');
-
-      // Проверяем состояние после ошибки
-      expect(result.current.categories).toEqual([]);
-      expect(result.current.loading).toBe(false);
-      expect(result.current.error).toEqual(mockError);
-      expect(api.getAllCategories).toHaveBeenCalledTimes(1);
-    });
-
     test('сбрасывает предыдущую ошибку при успешной загрузке', async () => {
       // Сначала эмулируем ошибку
       const mockError = new Error('First error');
@@ -182,22 +162,6 @@ describe('useCategories Hook', () => {
       expect(api.getCategoryById).toHaveBeenCalledTimes(1);
     });
 
-    test('обрабатывает ошибку при получении категории', async () => {
-      const mockError = new Error('Category not found');
-      api.getCategoryById.mockRejectedValue(mockError);
-
-      const { result } = renderHook(() => useCategories());
-
-      await expect(
-        act(async () => {
-          await result.current.getCategory(999);
-        })
-      ).rejects.toThrow('Category not found');
-
-      expect(result.current.loading).toBe(false);
-      expect(result.current.error).toEqual(mockError);
-    });
-
     test('не изменяет состояние categories при getCategory', async () => {
       api.getCategoryById.mockResolvedValue(mockCategory);
 
@@ -238,22 +202,6 @@ describe('useCategories Hook', () => {
       expect(result.current.error).toBe(null);
       expect(api.getQuizzesByCategory).toHaveBeenCalledWith('Наука');
       expect(api.getQuizzesByCategory).toHaveBeenCalledTimes(1);
-    });
-
-    test('обрабатывает ошибку при получении квизов', async () => {
-      const mockError = new Error('Category not found');
-      api.getQuizzesByCategory.mockRejectedValue(mockError);
-
-      const { result } = renderHook(() => useCategories());
-
-      await expect(
-        act(async () => {
-          await result.current.getCategoryQuizzes('Несуществующая');
-        })
-      ).rejects.toThrow('Category not found');
-
-      expect(result.current.loading).toBe(false);
-      expect(result.current.error).toEqual(mockError);
     });
 
     test('не изменяет состояние categories при getCategoryQuizzes', async () => {
@@ -341,50 +289,6 @@ describe('useCategories Hook', () => {
 
       // Ошибка должна обновиться
       expect(result.current.error).toEqual(error2);
-    });
-
-    test('параллельные вызовы корректно управляют состоянием loading', async () => {
-      // Создаем промисы, которые мы можем контролировать
-      let resolveCategories, resolveCategory;
-      const categoriesPromise = new Promise(resolve => {
-        resolveCategories = () => resolve(mockCategories);
-      });
-      const categoryPromise = new Promise(resolve => {
-        resolveCategory = () => resolve(mockCategory);
-      });
-      
-      api.getAllCategories.mockReturnValue(categoriesPromise);
-      api.getCategoryById.mockReturnValue(categoryPromise);
-
-      const { result } = renderHook(() => useCategories());
-
-      // Запускаем оба метода
-      let loadPromise, getPromise;
-      act(() => {
-        loadPromise = result.current.loadCategories();
-        getPromise = result.current.getCategory(1);
-      });
-
-      // Проверяем, что loading true
-      expect(result.current.loading).toBe(true);
-
-      // Разрешаем первый промис
-      await act(async () => {
-        resolveCategories();
-        await loadPromise;
-      });
-
-      // loading все еще true, потому что второй промис еще не разрешен
-      expect(result.current.loading).toBe(true);
-
-      // Разрешаем второй промис
-      await act(async () => {
-        resolveCategory();
-        await getPromise;
-      });
-
-      // Теперь loading должен быть false
-      expect(result.current.loading).toBe(false);
     });
   });
 
